@@ -23,7 +23,7 @@ class RoleSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for viewing/updating users (excludes password)."""
-    role = RoleSerializer(read_only=True)
+    role = RoleSerializer(read_only=True, allow_null=True)
     role_id = serializers.PrimaryKeyRelatedField(
         queryset=Role.objects.all(), source="role", write_only=True, required=False
     )

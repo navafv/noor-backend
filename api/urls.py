@@ -1,5 +1,6 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+# --- IMPORT THE NESTED ROUTER ---
+from rest_framework_nested import routers
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .views import health_check
@@ -15,13 +16,13 @@ from attendance.views import AttendanceViewSet
 from certificates.views import CertificateViewSet
 from notifications.views import NotificationViewSet
 
-# Initialize router
-router = DefaultRouter()
+# --- USE THE STANDARD ROUTER FOR MOST ---
+router = routers.DefaultRouter()
 router.register("roles", RoleViewSet)
 router.register("users", UserViewSet)
 router.register("enquiries", EnquiryViewSet)
 router.register("students", StudentViewSet)
-router.register("measurements", StudentMeasurementViewSet, basename="measurement")
+# router.register("measurements", StudentMeasurementViewSet, basename="measurement") # <-- REMOVE THIS
 router.register("courses", CourseViewSet)
 router.register("trainers", TrainerViewSet)
 router.register("batches", BatchViewSet)
@@ -38,6 +39,11 @@ router.register("stock-items", StockItemViewSet, basename="stock-item")
 router.register("stock-transactions", StockTransactionViewSet, basename="stock-transaction")
 router.register("notifications", NotificationViewSet, basename="notification")
 
+# --- CREATE A NESTED ROUTER FOR STUDENTS ---
+students_router = routers.NestedSimpleRouter(router, r'students', lookup='student')
+students_router.register(r'measurements', StudentMeasurementViewSet, basename='student-measurements')
+
+
 # Main API patterns
 urlpatterns = [
     # JWT Authentication
@@ -47,8 +53,10 @@ urlpatterns = [
     # Core routes
     path("", include(router.urls)),
 
+    # --- ADD THE NESTED ROUTES ---
+    path("", include(students_router.urls)),
+
     # API documentation
     path("", include("api.schema")),
     path("health/", health_check, name="health-check"),
-
 ]
