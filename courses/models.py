@@ -12,7 +12,7 @@ Improvements:
 
 from django.db import models
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from students.models import Student
 
 
@@ -127,7 +127,7 @@ class BatchFeedback(models.Model):
     about a batch they were enrolled in.
     """
     enrollment = models.OneToOneField(Enrollment, on_delete=models.CASCADE, related_name="feedback")
-    rating = models.PositiveIntegerField(validators=[MinValueValidator(1), models.MaxValueValidator(5)])
+    rating = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     comments = models.TextField(blank=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
 
