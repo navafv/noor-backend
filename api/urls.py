@@ -1,62 +1,46 @@
-from django.urls import path, include
-# --- IMPORT THE NESTED ROUTER ---
-from rest_framework_nested import routers
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+"""
+UPDATED FILE: stitching-backend/api/urls.py
 
+This file is the single source of truth for all v1 API routes.
+It has been refactored to use `include()` to delegate routing to each
+app's `urls.py` file. This is cleaner and more maintainable than
+registering all viewsets here.
+"""
+from django.urls import path, include
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import health_check
 
-# Import all viewsets
-from accounts.views import RoleViewSet, UserViewSet
-from students.views import EnquiryViewSet, StudentViewSet, StudentMeasurementViewSet
-from courses.views import CourseViewSet, TrainerViewSet, BatchViewSet, EnrollmentViewSet, BatchFeedbackViewSet
-from finance.views import FeesReceiptViewSet, ExpenseViewSet, PayrollViewSet, StockItemViewSet, StockTransactionViewSet
-from finance.views_analytics import FinanceAnalyticsViewSet
-from finance.views_outstanding import OutstandingFeesViewSet
-from attendance.views import AttendanceViewSet
-from certificates.views import CertificateViewSet
-from notifications.views import NotificationViewSet
-
-# --- USE THE STANDARD ROUTER FOR MOST ---
-router = routers.DefaultRouter()
-router.register("roles", RoleViewSet)
-router.register("users", UserViewSet)
-router.register("enquiries", EnquiryViewSet)
-router.register("students", StudentViewSet)
-# router.register("measurements", StudentMeasurementViewSet, basename="measurement") # <-- REMOVE THIS
-router.register("courses", CourseViewSet)
-router.register("trainers", TrainerViewSet)
-router.register("batches", BatchViewSet)
-router.register("enrollments", EnrollmentViewSet)
-router.register("feedback", BatchFeedbackViewSet, basename="feedback")
-router.register("fees/receipts", FeesReceiptViewSet)
-router.register("expenses", ExpenseViewSet)
-router.register("payroll", PayrollViewSet)
-router.register("attendance", AttendanceViewSet)
-router.register("certificates", CertificateViewSet)
-router.register("finance/analytics", FinanceAnalyticsViewSet, basename="finance-analytics")
-router.register("finance/outstanding", OutstandingFeesViewSet, basename="finance-outstanding")
-router.register("stock-items", StockItemViewSet, basename="stock-item")
-router.register("stock-transactions", StockTransactionViewSet, basename="stock-transaction")
-router.register("notifications", NotificationViewSet, basename="notification")
-
-# --- CREATE A NESTED ROUTER FOR STUDENTS ---
-students_router = routers.NestedSimpleRouter(router, r'students', lookup='student')
-students_router.register(r'measurements', StudentMeasurementViewSet, basename='student-measurements')
-
-
-# Main API patterns
 urlpatterns = [
-    # JWT Authentication
+    # 1. Authentication
     path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 
-    # Core routes
-    path("", include(router.urls)),
-
-    # --- ADD THE NESTED ROUTES ---
-    path("", include(students_router.urls)),
-
-    # API documentation
-    path("", include("api.schema")),
+    # 2. Health Check
     path("health/", health_check, name="health-check"),
+    
+    # 3. App-level URLs
+    # Includes: /roles/, /users/, /users/me/
+    path("", include("accounts.urls")),
+    
+    # Includes: /enquiries/, /students/, /students/<id>/measurements/
+    path("", include("students.urls")),
+    
+    # Includes: /courses/, /trainers/, /batches/, /enrollments/, /feedback/
+    path("", include("courses.urls")),
+    
+    # Includes: /certificates/, /certificates/verify/<hash>/
+    path("", include("certificates.urls")),
+    
+    # Includes: /notifications/, /notifications/send-bulk/
+    path("", include("notifications.urls")),
+    
+    # Includes: /attendance/records/, /attendance/analytics/
+    path("attendance/", include("attendance.urls")),
+    
+    # Includes: /finance/receipts/, /finance/expenses/, /finance/analytics/, etc.
+    path("finance/", include("finance.urls")),
+    
+    # 4. API Documentation
+    # Includes: /schema/, /docs/swagger/, /docs/redoc/
+    path("", include("api.schema")),
 ]
