@@ -28,11 +28,14 @@ class UserSerializer(serializers.ModelSerializer):
         queryset=Role.objects.all(), source="role", write_only=True, required=False
     )
 
+    student_id = serializers.ReadOnlyField(source='student.id', allow_null=True)
+
     class Meta:
         model = User
         fields = [
             "id", "username", "email", "first_name", "last_name",
             "phone", "address", "role", "role_id", "is_active", "is_staff",
+            "student_id",
         ]
         read_only_fields = ["id", "is_staff"]
 
