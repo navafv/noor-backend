@@ -70,3 +70,56 @@ class UserCreateSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         return user
+    
+
+class PasswordChangeSerializer(serializers.Serializer):
+    """
+    Serializer for password change endpoint.
+    """
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+
+    def validate_new_password(self, value):
+        # Use Django's built-in password validation
+        validate_password(value)
+        return value
+
+    def validate(self, data):
+        """
+        Check that the old password is correct.
+        """
+        user = self.context['request'].user
+        if not user.check_password(data.get('old_password')):
+            raise serializers.ValidationError({"old_password": "Wrong password."})
+        return data
+
+    def save(self, **kwargs):
+        """
+        Save the new password.
+        """
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
+    
+
+class HistoricalUserSerializer(serializers.ModelSerializer):
+    """
+    Read-only serializer for displaying user history.
+    """
+    history_user_name = serializers.ReadOnlyField(source="history_user.username", allow_null=True)
+    
+    class Meta:
+        model = User.history.model # Use the auto-created history model
+        fields = [
+            "history_id",
+            "history_date",
+            "history_user_name",
+            "history_type",
+            "history_change_reason",
+            "username",
+            "first_name",
+            "last_name",
+            "is_staff",
+            "is_active",
+        ]

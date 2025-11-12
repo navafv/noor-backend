@@ -1,5 +1,5 @@
 from rest_framework.routers import DefaultRouter
-from .views import FeesReceiptViewSet, ExpenseViewSet, PayrollViewSet, StockItemViewSet, StockTransactionViewSet
+from .views import FeesReceiptViewSet, ExpenseViewSet, PayrollViewSet, StockItemViewSet, StockTransactionViewSet, ReminderViewSet
 from .views_analytics import FinanceAnalyticsViewSet
 from .views_outstanding import OutstandingFeesViewSet
 
@@ -11,5 +11,6 @@ router.register("analytics", FinanceAnalyticsViewSet, basename="finance-analytic
 router.register("outstanding", OutstandingFeesViewSet, basename="finance-outstanding")
 router.register("stock-items", StockItemViewSet, basename="stock-item")
 router.register("stock-transactions", StockTransactionViewSet, basename="stock-transaction")
+router.register("reminders", ReminderViewSet, basename="reminder")
 
 urlpatterns = router.urls

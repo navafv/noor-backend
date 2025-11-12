@@ -19,7 +19,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies
-COPY requirments.txt .
+COPY requirements.txt .
 RUN pip_no_cache_dir=off pip install --upgrade pip
 RUN pip_no_cache_dir=off pip install -r requirments.txt
 

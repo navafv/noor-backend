@@ -9,7 +9,7 @@ Enhancements:
 
 from django.db import transaction
 from rest_framework import serializers
-from .models import FeesReceipt, Expense, Payroll, StockItem, StockTransaction
+from .models import FeesReceipt, Expense, Payroll, StockItem, StockTransaction, Reminder
 from courses.models import Enrollment
 
 
@@ -145,3 +145,27 @@ class StockTransactionSerializer(serializers.ModelSerializer):
         if request and request.user and request.user.is_authenticated:
             validated_data["user"] = request.user
         return super().create(validated_data)
+    
+
+class ReminderSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the Reminder log.
+    Provides read-only names for context.
+    """
+    student_name = serializers.ReadOnlyField(source="student.user.get_full_name")
+    course_title = serializers.ReadOnlyField(source="course.title")
+    batch_code = serializers.ReadOnlyField(source="batch.code")
+    sent_by_user = serializers.ReadOnlyField(source="sent_by.username", allow_null=True)
+
+    class Meta:
+        model = Reminder
+        fields = [
+            "id",
+            "student_name",
+            "course_title",
+            "batch_code",
+            "message",
+            "sent_at",
+            "sent_by_user",
+            "status",
+        ]

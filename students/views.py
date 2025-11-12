@@ -8,10 +8,16 @@ Enhancements:
 """
 
 from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny, IsAdminUser
 from .models import Enquiry, Student, StudentMeasurement
-from .serializers import EnquirySerializer, StudentSerializer, StudentMeasurementSerializer
-from api.permissions import IsStaffOrReadOnly
+from .serializers import (
+    EnquirySerializer, StudentSerializer, StudentMeasurementSerializer, 
+    StudentSelfUpdateSerializer, HistoricalStudentSerializer
+)
+from api.permissions import IsStaffOrReadOnly, IsStudent
 
 
 class EnquiryViewSet(viewsets.ModelViewSet):
@@ -40,7 +46,6 @@ class EnquiryViewSet(viewsets.ModelViewSet):
 class StudentViewSet(viewsets.ModelViewSet):
     """CRUD for student records (staff-only modifications)."""
     queryset = Student.objects.select_related("user", "user__role")
-    serializer_class = StudentSerializer
     permission_classes = [IsStaffOrReadOnly]
     filterset_fields = ["active", "admission_date"]
     search_fields = [
@@ -51,6 +56,43 @@ class StudentViewSet(viewsets.ModelViewSet):
         "guardian_phone",
     ]
     ordering_fields = ["admission_date", "reg_no", "id"]
+
+    def get_serializer_class(self):
+        if self.action == 'me' and self.request.method == 'PATCH':
+            return StudentSelfUpdateSerializer
+        return StudentSerializer # Default
+ 
+    def get_permissions(self):
+        if self.action == 'me':
+            self.permission_classes = [IsStudent]
+        return super().get_permissions()
+    
+    @action(
+        detail=False, 
+        methods=["get", "patch"], 
+        permission_classes=[IsStudent], 
+        parser_classes=[MultiPartParser, FormParser] # For file uploads
+    )
+    def me(self, request):
+        """
+        GET: Retrieve the student profile for the logged-in user.
+        PATCH: Update the student profile for the logged-in user (e.g., photo).
+        """
+        try:
+            student = request.user.student
+        except Student.DoesNotExist:
+            return Response({"detail": "Student profile not found for this user."}, status=404)
+ 
+        if request.method == 'GET':
+            serializer = self.get_serializer(student)
+            return Response(serializer.data)
+ 
+        if request.method == 'PATCH':
+            serializer = self.get_serializer(student, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=400)
 
 
 class StudentMeasurementViewSet(viewsets.ModelViewSet):
@@ -70,3 +112,14 @@ class StudentMeasurementViewSet(viewsets.ModelViewSet):
         """Automatically associate measurements with the student from the URL."""
         student = Student.objects.get(pk=self.kwargs.get("student_pk"))
         serializer.save(student=student)
+
+
+class HistoricalStudentViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only view for Student history.
+    """
+    queryset = Student.history.select_related("history_user", "user").all()
+    serializer_class = HistoricalStudentSerializer
+    permission_classes = [IsAdminUser]
+    filterset_fields = ["history_type", "history_user", "reg_no"]
+    search_fields = ["reg_no", "guardian_name", "user__username"]

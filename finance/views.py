@@ -11,9 +11,9 @@ from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from api.permissions import IsStaffOrReadOnly
-from .models import FeesReceipt, Expense, Payroll, StockItem, StockTransaction
-from .serializers import FeesReceiptSerializer, ExpenseSerializer, PayrollSerializer, StockItemSerializer, StockTransactionSerializer
+from api.permissions import IsStaffOrReadOnly, IsAdmin
+from .models import FeesReceipt, Expense, Payroll, StockItem, StockTransaction, Reminder
+from .serializers import FeesReceiptSerializer, ExpenseSerializer, PayrollSerializer, StockItemSerializer, StockTransactionSerializer, ReminderSerializer
 
 
 class FeesReceiptViewSet(viewsets.ModelViewSet):
@@ -98,3 +98,17 @@ class StockTransactionViewSet(viewsets.ModelViewSet):
     serializer_class = StockTransactionSerializer
     permission_classes = [IsStaffOrReadOnly]
     filterset_fields = ["item", "user"]
+
+
+class ReminderViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Provides a read-only list of all fee reminders.
+    """
+    queryset = Reminder.objects.select_related(
+        "student__user", "course", "batch", "sent_by"
+    ).all()
+    serializer_class = ReminderSerializer
+    permission_classes = [IsAdmin] # Only Admins can see the log
+    filterset_fields = ["status", "student", "course", "batch"]
+    search_fields = ["student__user__first_name", "student__user__last_name", "message"]
+    ordering_fields = ["-sent_at"]

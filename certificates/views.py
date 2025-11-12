@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from api.permissions import IsStaffOrReadOnly
+from api.permissions import IsStaffOrReadOnly, IsAdmin
 from rest_framework.permissions import AllowAny
 from .models import Certificate
 from .serializers import CertificateSerializer
@@ -10,7 +10,7 @@ from .serializers import CertificateSerializer
 class CertificateViewSet(viewsets.ModelViewSet):
     queryset = Certificate.objects.select_related("student__user", "course")
     serializer_class = CertificateSerializer
-    permission_classes = [IsStaffOrReadOnly]
+    permission_classes = [IsAdmin]
     filterset_fields = ["revoked", "course", "student", "issue_date"]
     search_fields = ["certificate_no", "student__user__username", "student__reg_no"]
     ordering_fields = ["issue_date", "certificate_no"]
@@ -31,3 +31,16 @@ class CertificateViewSet(viewsets.ModelViewSet):
             "remarks": cert.remarks,
         }
         return Response(data)
+
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
+    def revoke(self, request, pk=None):
+        """
+        Toggles the revocation status of a certificate.
+        """
+        cert = self.get_object()
+        new_status = not cert.revoked
+        cert.revoked = new_status
+        cert.save(update_fields=["revoked"])
+        status_text = "revoked" if new_status else "un-revoked"
+        return Response({"detail": f"Certificate has been {status_text}."})
