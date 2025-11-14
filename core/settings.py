@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     "certificates",
     "api",
     "notifications",
+    "messaging",
+    "events",
 
     # 3rd party
     "corsheaders",

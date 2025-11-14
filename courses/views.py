@@ -1,25 +1,30 @@
-"""
-UPDATED FILE: stitching-backend/courses/views.py
-Removed TeacherViewSet.
-"""
-
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils import timezone
-from .models import Course, Trainer, Batch, Enrollment, BatchFeedback, Student
-from .serializers import CourseSerializer, TrainerSerializer, BatchSerializer, EnrollmentSerializer, BatchFeedbackSerializer
-# Import all permissions
+from .models import (
+    Course, Trainer, Batch, Enrollment, BatchFeedback, Student, CourseMaterial
+)
+from .serializers import (
+    CourseSerializer, TrainerSerializer, BatchSerializer, 
+    EnrollmentSerializer, BatchFeedbackSerializer, CourseMaterialSerializer
+)
 from api.permissions import (
     IsAdminOrReadOnly, IsStaffOrReadOnly, IsEnrolledStudentOrReadOnly, 
-    IsAdmin, IsStudent # <-- 1. REMOVED IsTeacher
+    IsAdmin, IsStudent
 )
 from students.serializers import StudentSerializer
 
+# --- NEW IMPORTS ---
+from django.http import HttpResponse, FileResponse
+from django.shortcuts import get_object_or_404
+# --- END NEW IMPORTS ---
 
+
+# ... (CourseViewSet, TrainerViewSet, BatchViewSet, EnrollmentViewSet, BatchFeedbackViewSet are unchanged) ...
 class CourseViewSet(viewsets.ModelViewSet):
-    # ... (no change)
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = [IsAdminOrReadOnly] 
@@ -29,7 +34,6 @@ class CourseViewSet(viewsets.ModelViewSet):
 
 
 class TrainerViewSet(viewsets.ModelViewSet):
-    # ... (no change)
     queryset = Trainer.objects.select_related("user")
     serializer_class = TrainerSerializer
     permission_classes = [IsAdmin] 
@@ -39,7 +43,6 @@ class TrainerViewSet(viewsets.ModelViewSet):
 
 
 class BatchViewSet(viewsets.ModelViewSet):
-    # ... (no change)
     queryset = Batch.objects.select_related("course", "trainer", "trainer__user")
     serializer_class = BatchSerializer
     permission_classes = [IsAdmin] 
@@ -57,38 +60,26 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     ordering_fields = ["enrolled_on", "status"]
 
     def get_permissions(self):
-        """
-        Students can list their own enrollments.
-        Admins can do anything.
-        """
         if self.action == 'list':
-            # Allow students OR admins to list
-            self.permission_classes = [IsAdmin | IsStudent] # <-- 2. REMOVED IsTeacher
+            self.permission_classes = [IsAdmin | IsStudent]
         else:
-            # Only admins can create, update, delete
             self.permission_classes = [IsAdmin]
         return super().get_permissions()
     
     def get_queryset(self):
-        """
-        Students only see their own enrollments.
-        Admins see all enrollments.
-        """
         user = self.request.user
         if not user.is_authenticated:
             return Enrollment.objects.none()
         
-        # --- 3. SIMPLIFIED LOGIC ---
-        if user.is_staff: # Any staff (admin)
-            return super().get_queryset() # Admin sees all
+        if user.is_staff:
+            return super().get_queryset()
         
-        if not user.is_staff: # This is a Student
+        if not user.is_staff: 
             try:
-                # Filter by the student profile linked to this user
                 student_id = user.student.id
                 return super().get_queryset().filter(student_id=student_id)
             except Student.DoesNotExist:
-                return Enrollment.objects.none() # User has no student profile
+                return Enrollment.objects.none()
 
         return Enrollment.objects.none()
 
@@ -102,10 +93,6 @@ class BatchFeedbackViewSet(viewsets.ModelViewSet):
     permission_classes = [IsEnrolledStudentOrReadOnly]
 
     def get_queryset(self):
-        """
-        Students can only list their own feedback.
-        Staff can list all feedback.
-        """
         user = self.request.user
         if not user.is_authenticated:
             return self.queryset.none()
@@ -114,4 +101,74 @@ class BatchFeedbackViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(enrollment__student__user=user)
 
 
-# --- 4. REMOVED TeacherViewSet ---
+class CourseMaterialViewSet(viewsets.ModelViewSet):
+    """
+    Admin-only endpoint for managing materials for a specific course.
+    Accessed via: /api/v1/courses/<course_pk>/materials/
+    """
+    queryset = CourseMaterial.objects.all()
+    serializer_class = CourseMaterialSerializer
+    permission_classes = [IsAdmin] 
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        """Filter materials by the course ID in the URL."""
+        return self.queryset.filter(course_id=self.kwargs.get("course_pk")).select_related("course")
+
+    # --- NEW DOWNLOAD ACTION ---
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    def download(self, request, course_pk=None, pk=None):
+        """
+        Securely downloads the file for this material.
+        Accessible by Admins, or Students enrolled in this course.
+        """
+        material = get_object_or_404(CourseMaterial, course_id=course_pk, pk=pk)
+        
+        if not material.file:
+            return Response({"detail": "This material is a link, not a file."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Permission Check: Allow admins or enrolled students
+        is_admin = request.user.is_staff
+        is_enrolled = False
+        if not is_admin:
+            try:
+                student = request.user.student
+                is_enrolled = Enrollment.objects.filter(
+                    student=student, 
+                    batch__course_id=course_pk,
+                    status="active"
+                ).exists()
+            except Student.DoesNotExist:
+                is_enrolled = False
+        
+        if not (is_admin or is_enrolled):
+            return Response({"detail": "Not authorized to download this file."}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            # Use FileResponse to stream the file efficiently
+            return FileResponse(material.file.open('rb'), as_attachment=True, filename=material.file.name.split('/')[-1])
+        except FileNotFoundError:
+            return Response({"detail": "File not found on server."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"detail": f"Error accessing file: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class StudentMaterialsViewSet(viewsets.ReadOnlyModelViewSet):
+    # ... (no change)
+    serializer_class = CourseMaterialSerializer
+    permission_classes = [IsStudent]
+
+    def get_queryset(self):
+        try:
+            student = self.request.user.student
+            enrolled_course_ids = Enrollment.objects.filter(
+                student=student,
+                status="active"
+            ).values_list("batch__course_id", flat=True).distinct()
+            
+            return CourseMaterial.objects.filter(
+                course_id__in=enrolled_course_ids
+            ).select_related("course").order_by("course__title", "-uploaded_at")
+            
+        except Student.DoesNotExist:
+            return CourseMaterial.objects.none()

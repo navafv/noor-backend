@@ -1,15 +1,17 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-# --- 1. IMPORT IsStudent ---
+# --- 1. IMPORT IsAuthenticated ---
+from rest_framework.permissions import AllowAny, IsAuthenticated 
 from api.permissions import IsStaffOrReadOnly, IsAdmin, IsStudent
-from rest_framework.permissions import AllowAny
+# --- END IMPORT ---
 from .models import Certificate
 from .serializers import CertificateSerializer
+from django.http import HttpResponse, FileResponse
+from django.shortcuts import get_object_or_404
 
 
 class CertificateViewSet(viewsets.ModelViewSet):
-    # ... (no change to this admin viewset)
     queryset = Certificate.objects.select_related("student__user", "course")
     serializer_class = CertificateSerializer
     permission_classes = [IsAdmin]
@@ -17,11 +19,8 @@ class CertificateViewSet(viewsets.ModelViewSet):
     search_fields = ["certificate_no", "student__user__username", "student__reg_no"]
     ordering_fields = ["issue_date", "certificate_no"]
 
-    # 🔍 Public endpoint for verification by QR hash
     @action(detail=False, methods=["get"], permission_classes=[AllowAny], url_path="verify/(?P<qr_hash>[^/.]+)")
     def verify_certificate(self, request, qr_hash=None):
-        # ... (no change)
-        """Public QR-based verification endpoint."""
         cert = Certificate.objects.filter(qr_hash=qr_hash, revoked=False).select_related("student__user", "course").first()
         if not cert:
             return Response({"valid": False, "message": "Certificate not found or revoked."}, status=status.HTTP_404_NOT_FOUND)
@@ -38,10 +37,6 @@ class CertificateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
     def revoke(self, request, pk=None):
-        # ... (no change)
-        """
-        Toggles the revocation status of a certificate.
-        """
         cert = self.get_object()
         new_status = not cert.revoked
         cert.revoked = new_status
@@ -49,22 +44,43 @@ class CertificateViewSet(viewsets.ModelViewSet):
         status_text = "revoked" if new_status else "un-revoked"
         return Response({"detail": f"Certificate has been {status_text}."})
 
+    # --- 2. This action now has its permission imported ---
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated]) 
+    def download(self, request, pk=None):
+        """
+        Securely downloads the certificate PDF.
+        Accessible by Admins OR the student who owns it.
+        """
+        cert = get_object_or_404(Certificate, pk=pk)
 
-# --- 2. ADD NEW VIEWSET FOR STUDENTS ---
+        # Permission check
+        is_owner = request.user == cert.student.user
+        is_admin = request.user.is_staff
+        
+        if not (is_owner or is_admin):
+            return Response({"detail": "Not authorized to download this file."}, status=status.HTTP_403_FORBIDDEN)
+            
+        if not cert.pdf_file:
+            return Response({"detail": "PDF file not found for this certificate."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            return FileResponse(cert.pdf_file.open('rb'), as_attachment=True, filename=cert.pdf_file.name.split('/')[-1])
+        except FileNotFoundError:
+            return Response({"detail": "File not found on server."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"detail": f"Error accessing file: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class StudentCertificateViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Read-only endpoint for a student to view their *own* certificates.
-    """
     serializer_class = CertificateSerializer
-    permission_classes = [IsStudent] # Only students
+    permission_classes = [IsStudent]
 
     def get_queryset(self):
-        """Filter certificates to only those owned by the logged-in student."""
         try:
             student_id = self.request.user.student.id
             return Certificate.objects.filter(
                 student_id=student_id,
-                revoked=False # Only show valid certificates
+                revoked=False
             ).select_related(
                 "student__user", "course"
             ).order_by("-issue_date")

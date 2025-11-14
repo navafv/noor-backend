@@ -5,19 +5,30 @@ Enhancements:
 - Added selective permissions for safety.
 - Optimized queryset (select_related for role).
 - Added endpoint for self-profile retrieval.
+- NEW: Added Forgot Password & Reset Password views.
 """
 
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from .models import Role, User
 from .serializers import (
     RoleSerializer, UserSerializer, UserCreateSerializer, 
-    PasswordChangeSerializer, HistoricalUserSerializer
+    PasswordChangeSerializer, HistoricalUserSerializer,
+    PasswordResetRequestSerializer, SetNewPasswordSerializer
 )
 from api.permissions import IsAdmin
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
+# --- NEW IMPORTS ---
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.conf import settings
+# --- END NEW IMPORTS ---
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -83,3 +94,73 @@ class HistoricalUserViewSet(viewsets.ReadOnlyModelViewSet):
     authentication_classes = [JWTAuthentication]
     filterset_fields = ["history_type", "history_user", "username"]
     search_fields = ["username", "first_name", "history_change_reason"]
+
+
+# --- NEW VIEWS FOR FORGOT PASSWORD ---
+
+class ForgotPasswordView(generics.GenericAPIView):
+    """
+    Request a password reset email.
+    """
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetRequestSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user = User.objects.get(email__iexact=serializer.validated_data['email'])
+        
+        # Generate token and UID
+        token = PasswordResetTokenGenerator().make_token(user)
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+        
+        # Get frontend URL from settings (first one)
+        frontend_url = settings.CORS_ALLOWED_ORIGINS[0]
+        reset_link = f"{frontend_url}/reset-password/{uidb64}/{token}/"
+        
+        context = {
+            'first_name': user.first_name or user.username,
+            'reset_link': reset_link,
+        }
+        
+        # Render email
+        email_message = render_to_string('account/password_reset_email.html', context)
+        
+        try:
+            # Send email
+            send_mail(
+                subject="Password Reset for Noor Institute",
+                message=f"Click here to reset your password: {reset_link}", # Plain text fallback
+                html_message=email_message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+            )
+        except Exception as e:
+            return Response(
+                {"detail": "Error sending email. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        return Response(
+            {"detail": "Password reset link has been sent to your email."},
+            status=status.HTTP_200_OK
+        )
+
+
+class ResetPasswordView(generics.GenericAPIView):
+    """
+    Confirm and set a new password using the token.
+    """
+    permission_classes = [AllowAny]
+    serializer_class = SetNewPasswordSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response(
+            {"detail": "Password has been reset successfully. You can now log in."},
+            status=status.HTTP_200_OK
+        )

@@ -8,6 +8,7 @@ Improvements:
 - Added validation-ready fields (positive values, constraints).
 - Defined Meta options for ordering.
 - Ensured referential integrity on all ForeignKeys.
+- NEW: Added CourseMaterial model.
 """
 
 from django.db import models
@@ -130,13 +131,10 @@ class Enrollment(models.Model):
         REMOVED: Automatic calculation of completion_date.
         This is now handled by checking attendance count.
         """
-        # (The old logic is removed)
         super().save(*args, **kwargs) # Call the "real" save method.
     
     def get_present_days_count(self):
         """Counts all 'Present' attendance entries for this student in this course."""
-        # We check against the course, not the batch, in case the student
-        # was moved between batches of the same course.
         return self.student.attendanceentry_set.filter(
             attendance__batch__course=self.batch.course,
             status="P"
@@ -174,3 +172,31 @@ class BatchFeedback(models.Model):
 
     def __str__(self):
         return f"Feedback for {self.enrollment.batch.code} by {self.enrollment.student.user.get_full_name()}"
+
+
+# --- NEW MODEL ---
+class CourseMaterial(models.Model):
+    """
+    Represents a resource (file or link) associated with a course.
+    """
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="materials")
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    file = models.FileField(upload_to="course_materials/", blank=True, null=True)
+    link = models.URLField(blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+        verbose_name = "Course Material"
+        verbose_name_plural = "Course Materials"
+
+    def __str__(self):
+        return f"{self.title} ({self.course.code})"
+
+    def clean(self):
+        # Ensure either a file or a link is provided, but not both.
+        if not self.file and not self.link:
+            raise models.ValidationError("Must provide either a file or a link.")
+        if self.file and self.link:
+            raise models.ValidationError("Cannot provide both a file and a link.")

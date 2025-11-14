@@ -5,11 +5,12 @@ Enhancements:
 - Added validation and nested display fields.
 - Added atomic enrollment creation with capacity checks.
 - Added 'has_feedback' field to EnrollmentSerializer.
+- NEW: Added CourseMaterialSerializer.
 """
 
 from django.db import transaction
 from rest_framework import serializers
-from .models import Course, Trainer, Batch, Enrollment, BatchFeedback
+from .models import Course, Trainer, Batch, Enrollment, BatchFeedback, CourseMaterial
 
 
 class CourseSerializer(serializers.ModelSerializer):
@@ -123,3 +124,47 @@ class BatchFeedbackSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Feedback has already been submitted for this enrollment.")
             
         return enrollment
+
+
+# --- UPDATED SERIALIZER ---
+class CourseMaterialSerializer(serializers.ModelSerializer):
+    """
+    Serializer for uploading and viewing course materials.
+    """
+    course_title = serializers.ReadOnlyField(source="course.title")
+
+    class Meta:
+        model = CourseMaterial
+        # --- FIX: Removed 'course' from this list ---
+        fields = [
+            "id", "course_title", "title", "description",
+            "file", "link", "uploaded_at"
+        ]
+        read_only_fields = ["id", "uploaded_at", "course_title"]
+        # --- END FIX ---
+
+    def validate(self, attrs):
+        # Ensure either file or link is provided
+        file = attrs.get("file")
+        link = attrs.get("link")
+        
+        # On create
+        if not self.instance:
+            if not file and not link:
+                raise serializers.ValidationError("Must provide either a file or a link.")
+            if file and link:
+                raise serializers.ValidationError("Cannot provide both a file and a link.")
+        
+        # On update (patch)
+        if self.instance:
+            if file and (link or self.instance.link):
+                raise serializers.ValidationError("Cannot provide both a file and a link.")
+            if link and (file or self.instance.file):
+                raise serializers.ValidationError("Cannot provide both a file and a link.")
+
+        return attrs
+
+    def create(self, validated_data):
+        # 'course' will be provided from the nested URL, not the request body
+        validated_data['course_id'] = self.context['view'].kwargs['course_pk']
+        return super().create(validated_data)

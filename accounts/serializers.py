@@ -1,6 +1,12 @@
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from .models import Role, User
+# --- NEW IMPORTS ---
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
+from django.contrib.auth import get_user_model
+# --- END NEW IMPORTS ---
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -150,3 +156,49 @@ class HistoricalUserSerializer(serializers.ModelSerializer):
             "is_staff",
             "is_active",
         ]
+
+# --- NEW SERIALIZERS FOR FORGOT PASSWORD ---
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """
+    Serializer for requesting a password reset e-mail.
+    """
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        if not User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("No user found with this email address.")
+        return value
+
+
+class SetNewPasswordSerializer(serializers.Serializer):
+    """
+    Serializer for resetting password with a token.
+    """
+    uidb64 = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, attrs):
+        User = get_user_model()
+        try:
+            uid = force_str(urlsafe_base64_decode(attrs.get('uidb64')))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError("Invalid reset link.")
+
+        if not PasswordResetTokenGenerator().check_token(user, attrs.get('token')):
+            raise serializers.ValidationError("Invalid or expired reset link.")
+
+        attrs['user'] = user
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data['user']
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
