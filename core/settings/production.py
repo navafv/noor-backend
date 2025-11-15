@@ -3,9 +3,9 @@ import dj_database_url
 
 # --- Production-specific settings ---
 
-DEBUG = False
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1")
 
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",")
+ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "your.domain.com").split(",")
 
 # --- Database ---
 # Uses dj_database_url to parse DATABASE_URL env var.

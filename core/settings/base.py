@@ -16,7 +16,7 @@ import sentry_sdk
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # --- Environment & Security ---
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "fallback-unsafe-development-key-!@#$")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "p1j+#gu-s^$6#k7bj4j+yg37ug6ggj4=m)(07&sl52!m908$ky")
 
 # DEBUG and ALLOWED_HOSTS are defined in development.py/production.py
 
