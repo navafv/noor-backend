@@ -4,7 +4,7 @@ from .base import *
 
 DEBUG = False
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "192.168.1.2"]
 
 # --- Database ---
 # Use local sqlite3 for development
@@ -26,4 +26,4 @@ LOGGING["root"]["level"] = "DEBUG"
 # --- Django Debug Toolbar ---
 INSTALLED_APPS += ["debug_toolbar"]
 MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
-INTERNAL_IPS = ["127.0.0.1"]
+INTERNAL_IPS = ["192.168.1.2"]
