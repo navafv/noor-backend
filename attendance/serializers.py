@@ -124,28 +124,46 @@ class AttendanceSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated_data):
         """
-        Updates an Attendance record and *replaces* its entries in a transaction.
-        Checks for student completion status after update.
+        Updates an Attendance record and intelligently updates, creates, or
+        deletes its entries instead of replacing them all.
         """
         entries_data = validated_data.pop("entries", None)
-        
+
         # Update parent Attendance instance fields (date, remarks, etc.)
-        for attr, val in validated_data.items():
-            setattr(instance, attr, val)
+        instance.date = validated_data.get('date', instance.date)
+        instance.remarks = validated_data.get('remarks', instance.remarks)
+        instance.taken_by = validated_data.get('taken_by', instance.taken_by)
         instance.save()
 
         if entries_data is not None:
-            # If 'entries' payload is part of the update,
-            # delete old entries and bulk create new ones.
             student_ids = self._validate_student_ids(entries_data)
 
-            instance.entries.all().delete()
-            AttendanceEntry.objects.bulk_create([
-                AttendanceEntry(attendance=instance, **e) for e in entries_data
-            ])
-            
+            # Perform an intelligent diff-update
+
+            # Get existing entries as a map: {student_id: entry_object}
+            existing_entries_map = {e.student_id: e for e in instance.entries.all()}
+
+            for entry_data in entries_data:
+                student_id = entry_data['student'].id
+
+                if student_id in existing_entries_map:
+                    # UPDATE: This student already has an entry
+                    entry = existing_entries_map.pop(student_id)
+                    if entry.status != entry_data['status']:
+                        entry.status = entry_data['status']
+                        entry.save(update_fields=['status'])
+                else:
+                    # CREATE: This is a new student entry for this day
+                    AttendanceEntry.objects.create(attendance=instance, **entry_data)
+
+            # DELETE: Any entries left in the map were not in the payload
+            if existing_entries_map:
+                AttendanceEntry.objects.filter(
+                    id__in=[e.id for e in existing_entries_map.values()]
+                ).delete()
+
             # After saving, check completion status for each student
             for student_id in student_ids:
                 self._check_student_completion(instance.batch, student_id)
-                
+
         return instance

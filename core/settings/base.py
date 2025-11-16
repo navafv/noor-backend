@@ -16,7 +16,7 @@ import sentry_sdk
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # --- Environment & Security ---
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "p1j+#gu-s^$6#k7bj4j+yg37ug6ggj4=m)(07&sl52!m908$ky")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
 # DEBUG and ALLOWED_HOSTS are defined in development.py/production.py
 
@@ -106,6 +106,7 @@ USE_TZ = True
 # --- Static & Media Files ---
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "frontend_build"]
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

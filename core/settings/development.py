@@ -2,7 +2,11 @@ from .base import *
 
 # --- Development-specific settings ---
 
-DEBUG = False
+DEBUG = True
+
+if not SECRET_KEY and DEBUG:
+    # Use a placeholder key *only* for local development
+    SECRET_KEY = "p1j+#gu-s^$6#k7bj4j+yg37ug6ggj4=m)(07&sl52!m908$ky"
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "192.168.1.2"]
 
@@ -26,4 +30,4 @@ LOGGING["root"]["level"] = "DEBUG"
 # --- Django Debug Toolbar ---
 INSTALLED_APPS += ["debug_toolbar"]
 MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
-INTERNAL_IPS = ["192.168.1.2"]
+INTERNAL_IPS = ["192.168.1.2", "127.0.0.1"]

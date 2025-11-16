@@ -3,7 +3,10 @@ import dj_database_url
 
 # --- Production-specific settings ---
 
-DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1")
+DEBUG = os.getenv("DJANGO_DEBUG", "0").lower() in ("true", "1")
+
+if not SECRET_KEY and not DEBUG:
+    raise ValueError("DJANGO_SECRET_KEY must be set in production")
 
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "your.domain.com").split(",")
 

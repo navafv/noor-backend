@@ -22,11 +22,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . .
 
-# Collect static from Django and copy frontend build
-ENV STATIC_ROOT=/vol/web/static
+# --- FIX 3: Copy frontend build to a new 'frontend_build' dir ---
+# This dir will be added to STATICFILES_DIRS in base.py
+RUN mkdir -p /app/frontend_build
+RUN cp -r /app/frontend/dist/* /app/frontend_build/
+
+# --- FIX 2: Set production settings *before* collectstatic ---
+ENV DJANGO_SETTINGS_MODULE=core.settings.development
+
+# Collect static from Django (it will now find the frontend build)
 RUN python manage.py collectstatic --noinput
 
-# Copy frontend build into Django static files (adjust as necessary)
-RUN cp -r /app/frontend/dist/* /app/static/
-
-CMD ["gunicorn", "noor_backend.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--log-level", "info"]
+# --- FIX 1: Use correct WSGI application path ---
+CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--log-level", "info"]

@@ -55,13 +55,15 @@ class StudentSerializer(serializers.ModelSerializer):
         
         # Create the User account
         user = StudentUserCreateSerializer().create(user_payload)
-        
-        # Auto-generate registration number if not provided
-        if "reg_no" not in validated_data or not validated_data["reg_no"]:
-             validated_data["reg_no"] = Student.generate_reg_no()
-        
-        # Create the Student profile linked to the user
+
+        # Create the student *without* a reg_no
         student = Student.objects.create(user=user, **validated_data)
+
+        # Now that the student has an ID, generate the reg_no
+        year = student.admission_date.year
+        student.reg_no = f"STU{year}-{student.id:04d}"
+        student.save(update_fields=["reg_no"])
+        
         return student
 
     @transaction.atomic

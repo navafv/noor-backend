@@ -72,6 +72,11 @@ class EnrollmentSerializer(serializers.ModelSerializer):
     
     def get_present_days(self, obj):
         """Returns the student's total present days for this course."""
+
+        if hasattr(obj, 'present_days_count'):
+            return obj.present_days_count
+        
+        # Fallback for non-annotated queries (e.g., retrieve view)
         return obj.get_present_days_count()
 
     def get_required_days(self, obj):

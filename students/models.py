@@ -51,7 +51,7 @@ class Student(models.Model):
     Linked one-to-one with a User account for authentication.
     """
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    reg_no = models.CharField(max_length=30, unique=True)
+    reg_no = models.CharField(max_length=30, unique=True, null=True, blank=True)
     guardian_name = models.CharField(max_length=100)
     guardian_phone = models.CharField(max_length=15)
     admission_date = models.DateField(default=timezone.localdate)
@@ -74,16 +74,11 @@ class Student(models.Model):
 
     @staticmethod
     def generate_reg_no() -> str:
-        """
-        Generates a simple sequential registration number.
-        Example: STU2025-001
-        """
-        # Note: This has a potential race condition in high-concurrency.
-        # For more robust generation, consider using a separate sequence
-        # or a database-level function.
-        count = Student.objects.count() + 1
-        year = timezone.now().year
-        return f"STU{year}-{count:03d}"
+        # --- DEPRECATED ---
+        # This method is racy and should not be used.
+        # We will generate the number in the serializer after the object has an ID.
+        pass
+        # --- END DEPRECATED ---
 
 
 class StudentMeasurement(models.Model):

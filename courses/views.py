@@ -102,14 +102,26 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
             return Enrollment.objects.none()
         
         if user.is_staff:
-            return super().get_queryset()
-        
-        # User is a non-staff (Student)
-        try:
-            student_id = user.student.id
-            return super().get_queryset().filter(student_id=student_id)
-        except Student.DoesNotExist:
-            return Enrollment.objects.none()
+            base_queryset = super().get_queryset()
+        else:
+            try:
+                student_id = user.student.id
+                base_queryset = super().get_queryset().filter(student_id=student_id)
+            except Student.DoesNotExist:
+                return Enrollment.objects.none()
+            
+        queryset = base_queryset.annotate(
+            present_days_count=Count(
+                'student__attendanceentry', # Path to the entry
+                filter=Q(
+                    student__attendanceentry__status='P',
+                    # Ensure we only count attendance for the *same course*
+                    student__attendanceentry__attendance__batch__course=F('batch__course')
+                )
+            )
+        )
+
+        return queryset
 
 
 class BatchFeedbackViewSet(viewsets.ModelViewSet):
