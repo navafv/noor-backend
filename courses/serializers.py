@@ -156,14 +156,15 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
     Handles 'file' vs 'link' validation.
     """
     course_title = serializers.ReadOnlyField(source="course.title")
+    course = serializers.ReadOnlyField(source="course.id")
 
     class Meta:
         model = CourseMaterial
         fields = [
-            "id", "course_title", "title", "description",
+            "id", "course", "course_title", "title", "description",
             "file", "link", "uploaded_at"
         ]
-        read_only_fields = ["id", "uploaded_at", "course_title"]
+        read_only_fields = ["id", "uploaded_at", "course_title", "course"]
 
     def validate(self, attrs):
         """

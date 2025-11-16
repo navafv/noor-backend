@@ -23,11 +23,15 @@ from .serializers import (
 )
 from api.permissions import (
     IsAdminOrReadOnly, IsStaffOrReadOnly, IsEnrolledStudentOrReadOnly, 
-    IsAdmin, IsStudent
+    IsAdmin, IsStudent,
+    IsSelfOrAdmin 
 )
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 import logging
+from django.db.models import Q, F, Count
+from attendance.models import AttendanceEntry
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +60,65 @@ class TrainerViewSet(viewsets.ModelViewSet):
     filterset_fields = ["is_active", "join_date"]
     search_fields = ["emp_no", "user__first_name", "user__last_name"]
     ordering_fields = ["join_date", "emp_no", "id"]
+
+    @action(detail=False, methods=["get"], url_path="my-dashboard", permission_classes=[IsAuthenticated])
+    def my_dashboard(self, request):
+        """
+        Returns dashboard stats for the logged-in teacher.
+        """
+        try:
+            trainer = request.user.trainer
+        except Trainer.DoesNotExist:
+            return Response({"detail": "Trainer profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 1. Get active batches for this trainer
+        active_batches = Batch.objects.filter(
+            trainer=trainer,
+            enrollments__status='active'
+        ).distinct()
+        
+        active_batch_count = active_batches.count()
+        active_student_count = Enrollment.objects.filter(
+            batch__in=active_batches, status='active'
+        ).count()
+
+        # 2. Get today's classes
+        today_str = timezone.now().strftime('%a') # e.g., 'Mon', 'Tue'
+        todays_classes = []
+        for batch in active_batches:
+            if today_str in batch.schedule:
+                todays_classes.append({
+                    "batch_code": batch.code,
+                    "course_title": batch.course.title,
+                    "schedule": batch.schedule.get(today_str)
+                })
+
+        # 3. Get recent absences (last 7 days)
+        one_week_ago = timezone.now().date() - timedelta(days=7)
+        recent_absences = AttendanceEntry.objects.filter(
+            attendance__batch__in=active_batches,
+            status='A',
+            attendance__date__gte=one_week_ago
+        ).select_related(
+            'student__user', 'attendance__batch'
+        ).order_by('-attendance__date')
+
+        recent_absences_data = [
+            {
+                "date": entry.attendance.date,
+                "student_name": entry.student.user.get_full_name(),
+                "batch_code": entry.attendance.batch.code
+            }
+            for entry in recent_absences[:5] # Limit to 5
+        ]
+
+        data = {
+            "active_batch_count": active_batch_count,
+            "active_student_count": active_student_count,
+            "todays_classes": todays_classes,
+            "recent_absences": recent_absences_data
+        }
+        return Response(data)
 
 
 class BatchViewSet(viewsets.ModelViewSet):
