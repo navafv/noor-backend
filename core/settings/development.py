@@ -28,6 +28,6 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 LOGGING["root"]["level"] = "DEBUG"
 
 # --- Django Debug Toolbar ---
-INSTALLED_APPS += ["debug_toolbar"]
-MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
-INTERNAL_IPS = ["192.168.1.2", "127.0.0.1"]
+# INSTALLED_APPS += ["debug_toolbar"]
+# MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
+# INTERNAL_IPS = ["192.168.1.2", "127.0.0.1"]

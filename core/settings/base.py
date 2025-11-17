@@ -120,9 +120,9 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://192.168.1.2:5173").split(",")
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://192.168.1.2:5173,http://localhost:5173,http://127.0.0.1:5173").split(",")
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://192.168.1.2:5173").split(",")
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "http://192.168.1.2:5173,http://localhost:5173,http://127.0.0.1:5173").split(",")
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Stitching Institute Management API",
