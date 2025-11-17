@@ -1,21 +1,8 @@
-"""
-Serializers for the 'students' app.
-"""
-
 from django.db import transaction
 from rest_framework import serializers
-from .models import Enquiry, Student, StudentMeasurement
+from .models import Student, StudentMeasurement
 from accounts.serializers import UserSerializer, StudentUserCreateSerializer
 from django.utils import timezone
-
-
-class EnquirySerializer(serializers.ModelSerializer):
-    """Serializer for managing course enquiries."""
-    class Meta:
-        model = Enquiry
-        fields = "__all__"
-        read_only_fields = ["id", "created_at"]
-
 
 class StudentSerializer(serializers.ModelSerializer):
     """
@@ -96,24 +83,3 @@ class StudentSelfUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
         fields = ["photo"]
-
-    
-class HistoricalStudentSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for displaying student change history.
-    """
-    history_user_name = serializers.ReadOnlyField(source="history_user.username", allow_null=True)
-    user_name = serializers.ReadOnlyField(source="user.username", allow_null=True)
-
-    class Meta:
-        model = Student.history.model
-        fields = [
-            "history_id",
-            "history_date",
-            "history_user_name",
-            "history_type",
-            "reg_no",
-            "user_name",
-            "guardian_name",
-            "active",
-        ]

@@ -1,20 +1,10 @@
-"""
-Analytics-focused views for the 'attendance' app.
-
-Provides aggregated data endpoints for dashboards and reports,
-such as summaries by batch, student, or over time.
-"""
-
 from django.db.models import Count, Q
-from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Attendance, AttendanceEntry
+from .models import AttendanceEntry
 from students.models import Student
-from courses.models import Batch
-from api.permissions import IsStudent, IsAdmin
 
 
 class AttendanceAnalyticsViewSet(viewsets.ViewSet):
@@ -23,47 +13,6 @@ class AttendanceAnalyticsViewSet(viewsets.ViewSet):
     Permissions are checked manually within each action.
     """
     permission_classes = [IsAuthenticated] # Base permission
-
-    @action(detail=False, methods=["get"], permission_classes=[IsAdmin], url_path="batch/(?P<batch_id>[^/.]+)")
-    def batch_summary(self, request, batch_id=None):
-        """
-        (Admin Only)
-        Returns a batch-level attendance summary, calculating
-        present, absent, and leave counts for each enrolled student.
-        """
-        batch = Batch.objects.filter(id=batch_id).select_related("course", "trainer__user").first()
-        if not batch:
-            return Response({"detail": "Batch not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # Get total number of days attendance was taken for this batch
-        attendance_days = Attendance.objects.filter(batch=batch).count()
-        
-        # Aggregate attendance status for all students in this batch
-        entries = (
-            AttendanceEntry.objects
-            .filter(attendance__batch=batch)
-            .values("student__id", "student__user__first_name", "student__user__last_name", "student__reg_no")
-            .annotate(
-                presents=Count("id", filter=Q(status="P")),
-                absents=Count("id", filter=Q(status="A")),
-                leaves=Count("id", filter=Q(status="L")),
-            )
-            .order_by("student__user__first_name")
-        )
-
-        # Calculate percentages
-        for e in entries:
-            total = e["presents"] + e["absents"] + e["leaves"]
-            e["attendance_percentage"] = round((e["presents"] / total * 100) if total else 0, 2)
-
-        data = {
-            "batch_code": batch.code,
-            "course_title": batch.course.title,
-            "trainer_name": batch.trainer.user.get_full_name() if batch.trainer else None,
-            "total_attendance_days_taken": attendance_days,
-            "students": list(entries),
-        }
-        return Response(data)
 
     @action(detail=False, methods=["get"], url_path="student/(?P<student_id>[^/.]+)")
     def student_summary(self, request, student_id=None):
@@ -114,42 +63,3 @@ class AttendanceAnalyticsViewSet(viewsets.ViewSet):
             "batches": list(entries),
         }
         return Response(data)
-
-    @action(detail=False, methods=["get"], permission_classes=[IsAdmin], url_path="batch/(?P<batch_id>[^/.]+)/timeline")
-    def batch_timeline(self, request, batch_id=None):
-        """
-        (Admin Only)
-        Returns attendance percentage over time for an entire batch,
-        suitable for a dashboard chart.
-        """
-        batch = Batch.objects.filter(id=batch_id).select_related("course").first()
-        if not batch:
-            return Response({"detail": "Batch not found."}, status=404)
-
-        # Calculate percentage of 'Present' students for each day
-        records = (
-            Attendance.objects.filter(batch=batch)
-            .values("date")
-            .annotate(
-                total=Count("entries"),
-                presents=Count("entries", filter=Q(entries__status="P")),
-            )
-            .order_by("date")
-        )
-
-        # Format data for charting
-        data = [
-            {
-                "date": r["date"],
-                "present_percentage": round((r["presents"] / r["total"] * 100) if r["total"] else 0, 2),
-                "present_count": r["presents"],
-                "total_marked": r["total"],
-            }
-            for r in records
-        ]
-
-        return Response({
-            "batch_code": batch.code,
-            "course_title": batch.course.title,
-            "timeline": data,
-        })

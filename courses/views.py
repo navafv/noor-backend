@@ -1,37 +1,21 @@
-"""
-Views for the 'courses' app.
-
-Provides API endpoints for:
-- Course, Trainer, Batch, Enrollment (Staff/Admin CRUD)
-- BatchFeedback (Student create, Staff read)
-- CourseMaterial (Admin CRUD via nested route)
-- StudentMaterials (Student-facing read-only list)
-"""
-
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.utils import timezone
 from .models import (
-    Course, Trainer, Batch, Enrollment, BatchFeedback, Student, CourseMaterial
+    Course, Enrollment, Student, CourseMaterial
 )
 from .serializers import (
-    CourseSerializer, TrainerSerializer, BatchSerializer, 
-    EnrollmentSerializer, BatchFeedbackSerializer, CourseMaterialSerializer
+    CourseSerializer, EnrollmentSerializer, CourseMaterialSerializer
 )
 from api.permissions import (
-    IsAdminOrReadOnly, IsStaffOrReadOnly, IsEnrolledStudentOrReadOnly, 
-    IsAdmin, IsStudent,
-    IsSelfOrAdmin 
+    IsAdminOrReadOnly, IsAdmin, IsStudent
 )
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 import logging
 from django.db.models import Q, F, Count
-from attendance.models import AttendanceEntry
-from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -47,92 +31,6 @@ class CourseViewSet(viewsets.ModelViewSet):
     filterset_fields = ["active", "duration_weeks", "required_attendance_days"]
     search_fields = ["code", "title"]
     ordering_fields = ["title", "duration_weeks", "total_fees"]
-
-
-class TrainerViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for managing Trainers.
-    Write access is limited to Admins.
-    """
-    queryset = Trainer.objects.select_related("user")
-    serializer_class = TrainerSerializer
-    permission_classes = [IsAdmin] 
-    filterset_fields = ["is_active", "join_date"]
-    search_fields = ["emp_no", "user__first_name", "user__last_name"]
-    ordering_fields = ["join_date", "emp_no", "id"]
-
-    @action(detail=False, methods=["get"], url_path="my-dashboard", permission_classes=[IsAuthenticated])
-    def my_dashboard(self, request):
-        """
-        Returns dashboard stats for the logged-in teacher.
-        """
-        try:
-            trainer = request.user.trainer
-        except Trainer.DoesNotExist:
-            return Response({"detail": "Trainer profile not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # 1. Get active batches for this trainer
-        active_batches = Batch.objects.filter(
-            trainer=trainer,
-            enrollments__status='active'
-        ).distinct()
-        
-        active_batch_count = active_batches.count()
-        active_student_count = Enrollment.objects.filter(
-            batch__in=active_batches, status='active'
-        ).count()
-
-        # 2. Get today's classes
-        today_str = timezone.now().strftime('%a') # e.g., 'Mon', 'Tue'
-        todays_classes = []
-        for batch in active_batches:
-            if today_str in batch.schedule:
-                todays_classes.append({
-                    "batch_code": batch.code,
-                    "course_title": batch.course.title,
-                    "schedule": batch.schedule.get(today_str)
-                })
-
-        # 3. Get recent absences (last 7 days)
-        one_week_ago = timezone.now().date() - timedelta(days=7)
-        recent_absences = AttendanceEntry.objects.filter(
-            attendance__batch__in=active_batches,
-            status='A',
-            attendance__date__gte=one_week_ago
-        ).select_related(
-            'student__user', 'attendance__batch'
-        ).order_by('-attendance__date')
-
-        recent_absences_data = [
-            {
-                "date": entry.attendance.date,
-                "student_name": entry.student.user.get_full_name(),
-                "batch_code": entry.attendance.batch.code
-            }
-            for entry in recent_absences[:5] # Limit to 5
-        ]
-
-        data = {
-            "active_batch_count": active_batch_count,
-            "active_student_count": active_student_count,
-            "todays_classes": todays_classes,
-            "recent_absences": recent_absences_data
-        }
-        return Response(data)
-
-
-class BatchViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for managing Batches.
-    Write access is limited to Admins.
-    """
-    queryset = Batch.objects.select_related("course", "trainer", "trainer__user")
-    serializer_class = BatchSerializer
-    permission_classes = [IsAdmin] 
-    filterset_fields = ["course", "trainer"]
-    search_fields = ["code", "course__title", "trainer__user__first_name", "trainer__user__last_name"]
-    ordering_fields = ["code"]
-
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
     """
@@ -185,32 +83,6 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         )
 
         return queryset
-
-
-class BatchFeedbackViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for Batch Feedback.
-    - Students can create feedback for their own enrollments.
-    - Staff can read all feedback.
-    """
-    queryset = BatchFeedback.objects.select_related(
-        "enrollment__student__user", "enrollment__batch"
-    )
-    serializer_class = BatchFeedbackSerializer
-    permission_classes = [IsEnrolledStudentOrReadOnly] # Custom permission handles logic
-
-    def get_queryset(self):
-        """
-        - Staff see all feedback.
-        - Students (non-staff) see only their own feedback.
-        """
-        user = self.request.user
-        if not user.is_authenticated:
-            return self.queryset.none()
-        if user.is_staff:
-            return self.queryset.all()
-        return self.queryset.filter(enrollment__student__user=user)
-
 
 class CourseMaterialViewSet(viewsets.ModelViewSet):
     """

@@ -1,16 +1,6 @@
-"""
-Serializers for the 'finance' app.
-
-Handles validation and data transformation for all finance models.
-Includes logic for:
-- Validating fee receipts against enrollments.
-- Auto-assigning the logged-in user to 'posted_by' fields.
-- Validating positive amounts and payload consistency.
-"""
-
 from django.db import transaction
 from rest_framework import serializers
-from .models import FeesReceipt, Expense, Payroll, StockItem, StockTransaction, Reminder
+from .models import FeesReceipt, Expense
 from courses.models import Enrollment
 
 
@@ -104,76 +94,3 @@ class ExpenseSerializer(serializers.ModelSerializer):
         if request and request.user and request.user.is_authenticated:
             validated_data["added_by"] = request.user
         return super().create(validated_data)
-
-
-class PayrollSerializer(serializers.ModelSerializer):
-    """Serializer for Payroll model."""
-    class Meta:
-        model = Payroll
-        fields = "__all__"
-
-    def validate(self, attrs):
-        """
-        Validates payroll data.
-        (Optional) Can be extended to ensure net_pay matches
-        earnings - deductions if they are structured.
-        """
-        net_pay = attrs.get("net_pay")
-        if net_pay is not None and net_pay < 0:
-             raise serializers.ValidationError("Net pay cannot be negative.")
-        
-        return attrs
-
-
-class StockItemSerializer(serializers.ModelSerializer):
-    """Serializer for StockItem model."""
-    class Meta:
-        model = StockItem
-        fields = "__all__"
-        read_only_fields = ["id", "quantity_on_hand"]
-
-
-class StockTransactionSerializer(serializers.ModelSerializer):
-    """
-    Serializer for StockTransaction model.
-    Updates to stock are made via this serializer.
-    """
-    item_name = serializers.ReadOnlyField(source="item.name")
-    
-    class Meta:
-        model = StockTransaction
-        fields = "__all__"
-        read_only_fields = ["id", "date", "user"]
-
-    def create(self, validated_data):
-        """Assign 'user' on creation from the request."""
-        request = self.context.get("request")
-        if request and request.user and request.user.is_authenticated:
-            validated_data["user"] = request.user
-        
-        # The model's save() method handles updating the StockItem quantity
-        return super().create(validated_data)
-    
-
-class ReminderSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for the Reminder log.
-    Provides context-rich names.
-    """
-    student_name = serializers.ReadOnlyField(source="student.user.get_full_name")
-    course_title = serializers.ReadOnlyField(source="course.title")
-    batch_code = serializers.ReadOnlyField(source="batch.code")
-    sent_by_user = serializers.ReadOnlyField(source="sent_by.username", allow_null=True)
-
-    class Meta:
-        model = Reminder
-        fields = [
-            "id",
-            "student_name",
-            "course_title",
-            "batch_code",
-            "message",
-            "sent_at",
-            "sent_by_user",
-            "status",
-        ]

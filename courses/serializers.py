@@ -1,14 +1,6 @@
-"""
-Serializers for the 'courses' app.
-
-Handles validation and data transformation for Course, Trainer, Batch,
-Enrollment, Feedback, and CourseMaterial models.
-"""
-
 from django.db import transaction
 from rest_framework import serializers
-from .models import Course, Trainer, Batch, Enrollment, BatchFeedback, CourseMaterial
-
+from .models import Course, Enrollment, CourseMaterial
 
 class CourseSerializer(serializers.ModelSerializer):
     """Serializer for Course model."""
@@ -18,29 +10,6 @@ class CourseSerializer(serializers.ModelSerializer):
             "id", "code", "title", "duration_weeks", "total_fees", 
             "syllabus", "active", "required_attendance_days"
         ]
-
-
-class TrainerSerializer(serializers.ModelSerializer):
-    """Serializer for Trainer model."""
-    trainer_name = serializers.ReadOnlyField(source="user.get_full_name")
-
-    class Meta:
-        model = Trainer
-        fields = ["id", "user", "trainer_name", "emp_no", "join_date", "salary", "is_active"]
-
-
-class BatchSerializer(serializers.ModelSerializer):
-    """Serializer for Batch model."""
-    course_title = serializers.ReadOnlyField(source="course.title")
-    trainer_name = serializers.ReadOnlyField(source="trainer.user.get_full_name")
-
-    class Meta:
-        model = Batch
-        fields = [
-            "id", "course", "course_title", "trainer", "trainer_name",
-            "code", "capacity", "schedule",
-        ]
-
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     """
@@ -106,49 +75,6 @@ class EnrollmentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Student already enrolled in this batch.")
 
         return super().create(validated_data)
-
-
-class BatchFeedbackSerializer(serializers.ModelSerializer):
-    """
-    Serializer for creating and viewing BatchFeedback.
-    """
-    student_name = serializers.ReadOnlyField(source="enrollment.student.user.get_full_name")
-    batch_code = serializers.ReadOnlyField(source="enrollment.batch.code")
-
-    class Meta:
-        model = BatchFeedback
-        fields = [
-            "id", "enrollment", "student_name", "batch_code", 
-            "rating", "comments", "submitted_at"
-        ]
-        read_only_fields = ["id", "submitted_at"]
-
-    def validate_enrollment(self, enrollment):
-        """
-        Validates feedback submission.
-        1. Ensures the user submitting is the student on the enrollment.
-        2. (Optional) Ensures the course is 'completed'.
-        3. Ensures feedback hasn't already been submitted.
-        """
-        request = self.context.get("request")
-        if not request or not request.user.is_authenticated:
-            raise serializers.ValidationError("Authentication required.")
-        
-        # 1. Check ownership
-        if enrollment.student.user != request.user:
-            raise serializers.ValidationError("You can only submit feedback for your own enrollments.")
-        
-        # 2. Check if course is completed
-        if enrollment.status != "completed":
-            # This is an optional business rule.
-            raise serializers.ValidationError("Feedback can only be submitted for completed batches.")
-            
-        # 3. Check for duplicates
-        if BatchFeedback.objects.filter(enrollment=enrollment).exists():
-            raise serializers.ValidationError("Feedback has already been submitted for this enrollment.")
-            
-        return enrollment
-
 
 class CourseMaterialSerializer(serializers.ModelSerializer):
     """

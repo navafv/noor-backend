@@ -1,13 +1,6 @@
-"""
-Serializers for the 'accounts' app.
-
-Handles the conversion of User and Role models to and from JSON,
-including logic for user creation, password changes, and password resets.
-"""
-
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-from .models import Role, User
+from .models import User
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
@@ -15,34 +8,14 @@ from django.contrib.auth import get_user_model
 
 UserModel = get_user_model()
 
-
-class RoleSerializer(serializers.ModelSerializer):
-    """Serializer for the Role model."""
-    class Meta:
-        model = Role
-        fields = ["id", "name", "description"]
-        read_only_fields = ["id"]
-
-
 class UserSerializer(serializers.ModelSerializer):
-    """
-    Serializer for viewing and updating User instances.
-    Excludes password fields for security.
-    """
-    # Read-only nested representation of the role
-    role = RoleSerializer(read_only=True, allow_null=True)
-    # Write-only field to update the role by its ID
-    role_id = serializers.PrimaryKeyRelatedField(
-        queryset=Role.objects.all(), source="role", write_only=True, required=False, allow_null=True
-    )
-    # Read-only field to show the associated student ID, if one exists
     student_id = serializers.ReadOnlyField(source='student.id', allow_null=True)
 
     class Meta:
         model = User
         fields = [
             "id", "username", "email", "first_name", "last_name",
-            "phone", "address", "role", "role_id", "is_active", 
+            "phone", "address", "is_active", 
             "is_staff", "is_superuser", "student_id",
         ]
         # Password is not included for reads/updates
@@ -51,13 +24,6 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer for creating new users (Admin use).
-    Handles password hashing and allows setting staff status.
-    """
-    role_id = serializers.PrimaryKeyRelatedField(
-        queryset=Role.objects.all(), source="role", write_only=True, required=False, allow_null=True
-    )
     password = serializers.CharField(write_only=True, validators=[validate_password])
     is_staff = serializers.BooleanField(default=False, required=False)
 
@@ -65,7 +31,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "username", "email", "first_name", "last_name",
-            "phone", "address", "role_id", "password", "is_staff",
+            "phone", "address", "password", "is_staff",
         ]
         read_only_fields = ["id"]
 
@@ -79,21 +45,13 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
 
 class StudentUserCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer for creating a new user tied to a Student profile.
-    This is used by the StudentSerializer to create a User and Student
-    in one step. It ensures 'is_staff' and 'is_superuser' are always False.
-    """
-    role_id = serializers.PrimaryKeyRelatedField(
-        queryset=Role.objects.all(), source="role", write_only=True, required=False, allow_null=True
-    )
     password = serializers.CharField(write_only=True, validators=[validate_password])
 
     class Meta:
         model = User
         fields = [
             "id", "username", "email", "first_name", "last_name",
-            "phone", "address", "role_id", "password",
+            "phone", "address", "password",
         ]
         read_only_fields = ["id"]
 
@@ -132,27 +90,6 @@ class PasswordChangeSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         return user
-    
-
-class HistoricalUserSerializer(serializers.ModelSerializer):
-    """Read-only serializer for displaying User change history."""
-    history_user_name = serializers.ReadOnlyField(source="history_user.username", allow_null=True)
-    
-    class Meta:
-        model = User.history.model
-        fields = [
-            "history_id",
-            "history_date",
-            "history_user_name",
-            "history_type",
-            "history_change_reason",
-            "username",
-            "first_name",
-            "last_name",
-            "is_staff",
-            "is_active",
-        ]
-
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     """Validates the email for a password reset request."""

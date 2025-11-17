@@ -6,17 +6,13 @@ using `rest_framework_nested`.
 """
 from rest_framework_nested import routers
 from .views import (
-    CourseViewSet, TrainerViewSet, BatchViewSet, 
-    EnrollmentViewSet, BatchFeedbackViewSet,
+    CourseViewSet, EnrollmentViewSet,
     CourseMaterialViewSet, StudentMaterialsViewSet
 )
 
 router = routers.DefaultRouter()
 router.register(r"courses", CourseViewSet, basename="course")
-router.register(r"trainers", TrainerViewSet, basename="trainer")
-router.register(r"batches", BatchViewSet, basename="batch")
 router.register(r"enrollments", EnrollmentViewSet, basename="enrollment")
-router.register(r"feedback", BatchFeedbackViewSet, basename="feedback")
 
 # Student-facing endpoint for their materials
 router.register(r"my-materials", StudentMaterialsViewSet, basename="my-materials")

@@ -1,24 +1,15 @@
-"""
-Views for the 'accounts' app.
-
-Provides API endpoints for managing Users, Roles, and authentication
-processes like password changes and resets.
-"""
-
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from .models import Role, User
+from .models import User
 from .serializers import (
-    RoleSerializer, UserSerializer, UserCreateSerializer, 
-    PasswordChangeSerializer, HistoricalUserSerializer,
+    UserSerializer, UserCreateSerializer, 
+    PasswordChangeSerializer,
     PasswordResetRequestSerializer, SetNewPasswordSerializer
 )
 from api.permissions import IsAdmin
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
-# Password Reset Imports
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
@@ -28,21 +19,6 @@ from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-class RoleViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for Role management.
-    (Admin access only)
-    """
-    queryset = Role.objects.all().order_by("name")
-    serializer_class = RoleSerializer
-    permission_classes = [IsAdmin]
-    authentication_classes = [JWTAuthentication]
-    filterset_fields = ["name"]
-    search_fields = ["name"]
-    ordering_fields = ["name", "id"]
-
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -104,20 +80,6 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Password updated successfully."}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-
-class HistoricalUserViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Read-only endpoint for viewing User change history.
-    (Admin access only)
-    """
-    queryset = User.history.select_related("history_user").all()
-    serializer_class = HistoricalUserSerializer
-    permission_classes = [IsAdmin]
-    authentication_classes = [JWTAuthentication]
-    filterset_fields = ["history_type", "history_user", "username"]
-    search_fields = ["username", "first_name", "history_change_reason"]
-
-
 class ForgotPasswordView(generics.GenericAPIView):
     """
     Public endpoint to request a password reset email.

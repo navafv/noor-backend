@@ -1,49 +1,13 @@
-"""
-Views for the 'students' app.
-
-Provides endpoints for:
-- Public enquiries (create-only for public, full CRUD for staff).
-- Student profile management (staff CRUD, student-only 'me' endpoint).
-- Student measurements (nested under student profiles).
-- Student history (admin-only).
-"""
-
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.permissions import AllowAny, IsAdminUser
-from .models import Enquiry, Student, StudentMeasurement
+from .models import Student, StudentMeasurement
 from .serializers import (
-    EnquirySerializer, StudentSerializer, StudentMeasurementSerializer, 
-    StudentSelfUpdateSerializer, HistoricalStudentSerializer
+    StudentSerializer, StudentMeasurementSerializer, 
+    StudentSelfUpdateSerializer
 )
-from api.permissions import IsStaffOrReadOnly, IsStudent, IsAdmin
-from rest_framework_simplejwt.authentication import JWTAuthentication
-
-
-class EnquiryViewSet(viewsets.ModelViewSet):
-    """
-    Handles public/student enquiries.
-    """
-    queryset = Enquiry.objects.all().order_by("-created_at")
-    serializer_class = EnquirySerializer
-    filterset_fields = ["status", "course_interest"]
-    search_fields = ["name", "phone", "email", "notes"]
-    ordering_fields = ["created_at", "name"]
-
-    def get_permissions(self):
-        """
-        - Allow public 'create' (POST) for the enquiry form.
-        - Require staff/admin for all other actions (list, update, delete).
-        """
-        if self.action == 'create':
-            self.permission_classes = [AllowAny]
-        else:
-            # IsAdminUser checks if user.is_staff == True
-            self.permission_classes = [IsAdminUser] 
-        return super().get_permissions()
-
+from api.permissions import IsStaffOrReadOnly, IsStudent
 
 class StudentViewSet(viewsets.ModelViewSet):
     """
@@ -123,19 +87,4 @@ class StudentMeasurementViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Automatically associate measurements with the student from the URL."""
         student_pk = self.kwargs.get("student_pk")
-        # This assumes the student_pk is valid, which is generally true
-        # if accessed via a nested router.
         serializer.save(student_id=student_pk)
-
-
-class HistoricalStudentViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Read-only view for Student change history.
-    (Admin access only)
-    """
-    queryset = Student.history.select_related("history_user", "user").all()
-    serializer_class = HistoricalStudentSerializer
-    permission_classes = [IsAdmin] 
-    authentication_classes = [JWTAuthentication] 
-    filterset_fields = ["history_type", "history_user", "reg_no"]
-    search_fields = ["reg_no", "guardian_name", "user__username"]

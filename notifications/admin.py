@@ -1,7 +1,3 @@
-"""
-Admin configuration for the 'notifications' app.
-"""
-
 from django.contrib import admin
 from .models import Notification
 

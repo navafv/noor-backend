@@ -1,26 +1,10 @@
-"""
-Admin configuration for the 'students' app.
-"""
-
 from django.contrib import admin
-from .models import Enquiry, Student, StudentMeasurement
-
+from .models import Student, StudentMeasurement
 
 class StudentMeasurementInline(admin.TabularInline):
-    """Allows editing measurements directly from the Student admin page."""
     model = StudentMeasurement
-    extra = 1 # Show one empty form
+    extra = 1
     ordering = ("-date_taken",)
-
-
-@admin.register(Enquiry)
-class EnquiryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "phone", "course_interest", "status", "created_at")
-    list_filter = ("status", "course_interest")
-    search_fields = ("name", "phone", "email", "notes")
-    ordering = ("-created_at",)
-    readonly_fields = ("created_at",)
-
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
@@ -33,7 +17,6 @@ class StudentAdmin(admin.ModelAdmin):
         "guardian_name",
         "guardian_phone",
     )
-    # reg_no is auto-generated or set on create, not edited
     readonly_fields = ("reg_no",)
     ordering = ("-admission_date",)
     inlines = [StudentMeasurementInline]

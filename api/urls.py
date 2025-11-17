@@ -26,7 +26,6 @@ urlpatterns = [
     path("", include("courses.urls")),
     path("", include("certificates.urls")),
     path("", include("notifications.urls")),
-    path("", include("messaging.urls")),
     path("", include("events.urls")),
 
     # These apps are prefixed for clarity
