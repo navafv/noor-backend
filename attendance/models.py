@@ -7,6 +7,8 @@ class Attendance(models.Model):
     date = models.DateField(unique=True)
     taken_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-date"]
@@ -20,40 +22,37 @@ class Attendance(models.Model):
         return f"Attendance for {self.date}"
 
     @property
-    def total_students(self) -> int:
+    def total_students(self):
         return self.entries.count()
 
-    def summary(self) -> dict:
-        counts = self.entries.values("status").order_by("status").annotate(
-            total=models.Count("status")
-        )
-        return {c["status"]: c["total"] for c in counts}
+    @property
+    def summary(self):
+        """Returns counts of Present, Absent, etc."""
+        return {
+            "present": self.entries.filter(status="P").count(),
+            "absent": self.entries.filter(status="A").count(),
+            "late": self.entries.filter(status="L").count(),
+            "excused": self.entries.filter(status="E").count(),
+        }
 
 
 class AttendanceEntry(models.Model):
     STATUS_CHOICES = [
         ("P", "Present"),
         ("A", "Absent"),
-        ("L", "Leave"),
+        ("L", "Late"),
+        ("E", "Excused"),
     ]
 
     attendance = models.ForeignKey(Attendance, on_delete=models.CASCADE, related_name="entries")
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
-    status = models.CharField(
-        max_length=1,
-        choices=STATUS_CHOICES,
-        default="P",
-        validators=[MinLengthValidator(1)],
-    )
+    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default="P")
+    remarks = models.CharField(max_length=255, blank=True)
 
     class Meta:
-        unique_together = ("attendance", "student") 
-        indexes = [
-            models.Index(fields=["status"]),
-            models.Index(fields=["student"]),
-        ]
+        unique_together = ("attendance", "student")
         verbose_name = "Attendance Entry"
         verbose_name_plural = "Attendance Entries"
 
     def __str__(self):
-        return f"{self.student.user.get_full_name()} - {self.get_status_display()}"
+        return f"{self.student} - {self.status}"

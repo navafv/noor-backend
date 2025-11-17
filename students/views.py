@@ -10,12 +10,7 @@ from .serializers import (
 from api.permissions import IsStaffOrReadOnly, IsStudent
 
 class StudentViewSet(viewsets.ModelViewSet):
-    """
-    Handles CRUD for student records.
-    - Staff/Admins have full read/write access.
-    - Authenticated students can use the '/me' endpoint.
-    """
-    queryset = Student.objects.select_related("user", "user__role")
+    queryset = Student.objects.select_related("user")
     permission_classes = [IsStaffOrReadOnly]
     filterset_fields = ["active", "admission_date"]
     search_fields = [
@@ -28,16 +23,11 @@ class StudentViewSet(viewsets.ModelViewSet):
     ordering_fields = ["admission_date", "reg_no", "id"]
 
     def get_serializer_class(self):
-        """
-        Use a limited serializer for the 'me' endpoint PATCH,
-        otherwise use the default StudentSerializer.
-        """
         if self.action == 'me' and self.request.method == 'PATCH':
             return StudentSelfUpdateSerializer
         return StudentSerializer
 
     def get_permissions(self):
-        """Assign IsStudent permission for the 'me' action."""
         if self.action == 'me':
             self.permission_classes = [IsStudent]
         return super().get_permissions()
@@ -46,13 +36,9 @@ class StudentViewSet(viewsets.ModelViewSet):
         detail=False, 
         methods=["get", "patch"], 
         permission_classes=[IsStudent], 
-        parser_classes=[MultiPartParser, FormParser] # For photo uploads
+        parser_classes=[MultiPartParser, FormParser]
     )
     def me(self, request):
-        """
-        GET: Retrieve the student profile for the logged-in user.
-        PATCH: Update the student profile (e.g., photo) for the logged-in user.
-        """
         try:
             student = request.user.student
         except Student.DoesNotExist:
@@ -71,20 +57,13 @@ class StudentViewSet(viewsets.ModelViewSet):
 
 
 class StudentMeasurementViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for managing a student's measurements.
-    Accessed via the nested route:
-    /api/v1/students/<student_pk>/measurements/
-    """
     queryset = StudentMeasurement.objects.all()
     serializer_class = StudentMeasurementSerializer
     permission_classes = [IsStaffOrReadOnly]
 
     def get_queryset(self):
-        """Filter measurements by the student_pk in the URL."""
         return self.queryset.filter(student_id=self.kwargs.get("student_pk"))
 
     def perform_create(self, serializer):
-        """Automatically associate measurements with the student from the URL."""
         student_pk = self.kwargs.get("student_pk")
         serializer.save(student_id=student_pk)

@@ -1,105 +1,61 @@
-from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from api.permissions import IsStaffOrReadOnly, IsAdmin, IsStudent
 from .models import FeesReceipt, Expense
-from students.models import Student
-from .serializers import (
-    FeesReceiptSerializer, ExpenseSerializer
-)
-from .utils import generate_receipt_pdf_bytes
-from django.http import HttpResponse, FileResponse
-from django.core.files.base import ContentFile
-from django.shortcuts import get_object_or_404
-import logging
-
-logger = logging.getLogger(__name__)
+from .serializers import FeesReceiptSerializer, ExpenseSerializer
+from api.permissions import IsAdmin, IsStudent
+from django.http import FileResponse
+from .utils import generate_receipt_pdf
 
 class FeesReceiptViewSet(viewsets.ModelViewSet):
-    queryset = (
-        FeesReceipt.objects
-        .select_related("student__user", "course", "batch", "posted_by")
-        .all()
-    )
+    queryset = FeesReceipt.objects.select_related("student__user", "course").all()
     serializer_class = FeesReceiptSerializer
-    permission_classes = [IsStaffOrReadOnly]
-    filterset_fields = ["mode", "locked", "date", "student", "course", "batch"]
-    search_fields = ["receipt_no", "txn_id", "student__user__username", "student__reg_no"]
-    ordering_fields = ["date", "amount", "receipt_no"]
+    filterset_fields = ["student", "course", "date", "mode"]
+    search_fields = ["receipt_no", "student__user__first_name", "student__reg_no"]
+    ordering_fields = ["date", "amount"]
 
-    @transaction.atomic
-    @action(detail=True, methods=["post"], url_path="lock", permission_classes=[IsAdmin])
-    def lock(self, request, pk=None):
-        receipt = self.get_object()
-        if receipt.locked:
-            return Response({"detail": "Already locked."}, status=status.HTTP_400_BAD_REQUEST)
-        receipt.locked = True
-        receipt.save(update_fields=["locked"])
-        return Response({"detail": "Receipt locked."}, status=status.HTTP_200_OK)
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'download_pdf']:
+            return [IsAdmin() | IsStudent()] 
+        return [IsAdmin()]
 
-    @transaction.atomic
-    @action(detail=True, methods=["post"], url_path="unlock", permission_classes=[IsAdmin])
-    def unlock(self, request, pk=None):
-        receipt = self.get_object()
-        if not receipt.locked:
-            return Response({"detail": "Already unlocked."}, status=status.HTTP_400_BAD_REQUEST)
-        receipt.locked = False
-        receipt.save(update_fields=["locked"])
-        return Response({"detail": "Receipt unlocked."}, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated], url_path="download")
-    def download_pdf(self, request, pk=None):
-        receipt = get_object_or_404(FeesReceipt, pk=pk)
-
-        is_owner = (request.user.is_authenticated and 
-                    hasattr(request.user, 'student') and 
-                    request.user.student == receipt.student)
-        is_admin = request.user.is_staff
-        
-        if not (is_owner or is_admin):
-            return Response({"detail": "Not authorized to view this receipt."}, status=status.HTTP_403_FORBIDDEN)
-            
-        if receipt.pdf_file:
-            try:
-                return FileResponse(
-                    receipt.pdf_file.open('rb'), 
-                    as_attachment=False,
-                    filename=f"{receipt.receipt_no}.pdf"
-                )
-            except FileNotFoundError:
-                logger.warning(f"Receipt PDF file not found in storage: {receipt.pdf_file.name}")
-                pass
-
-        logger.info(f"Generating PDF for receipt {receipt.receipt_no} on the fly.")
-        pdf_bytes = generate_receipt_pdf_bytes(receipt.id)
-        if not pdf_bytes:
-            return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        receipt.pdf_file.save(f"{receipt.receipt_no}.pdf", ContentFile(pdf_bytes), save=True)
-        
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="{receipt.receipt_no}.pdf"'
-        return response
-
-class StudentReceiptsViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = FeesReceiptSerializer
-    permission_classes = [IsStudent] 
-    
     def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return super().get_queryset()
+        if hasattr(user, 'student'):
+            return super().get_queryset().filter(student=user.student)
+        return FeesReceipt.objects.none()
+
+    @action(detail=True, methods=['get'], url_path='download')
+    def download_pdf(self, request, pk=None):
+        receipt = self.get_object()
+        
+        # Generate PDF if it doesn't exist
+        if not receipt.pdf_file:
+            pdf_content = generate_receipt_pdf(receipt)
+            if pdf_content:
+                from django.core.files.base import ContentFile
+                filename = f"Receipt_{receipt.receipt_no}.pdf"
+                receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
+            else:
+                return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
         try:
-            student_id = self.request.user.student.id
-            return FeesReceipt.objects.filter(student_id=student_id).select_related(
-                "student__user", "course", "batch"
-            ).order_by("-date")
-        except Student.DoesNotExist:
-            return FeesReceipt.objects.none()
+            return FileResponse(
+                receipt.pdf_file.open('rb'), 
+                as_attachment=True, 
+                filename=f"Receipt_{receipt.receipt_no}.pdf"
+            )
+        except FileNotFoundError:
+            return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
+
 
 class ExpenseViewSet(viewsets.ModelViewSet):
-    queryset = Expense.objects.select_related("added_by").all()
+    queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
-    permission_classes = [IsStaffOrReadOnly]
+    permission_classes = [IsAdmin]
     filterset_fields = ["category", "date"]
-    search_fields = ["description"]
+    search_fields = ["title", "description"]
     ordering_fields = ["date", "amount"]

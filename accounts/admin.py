@@ -11,6 +11,6 @@ class UserAdmin(admin.ModelAdmin):
     fieldsets = (
         ("Basic Info", {"fields": ("username", "email", "password")}),
         ("Personal Details", {"fields": ("first_name", "last_name", "phone", "address")}),
-        ("Role & Permissions", {"fields": ("role", "is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
+        ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         ("Important Dates", {"fields": ("last_login", "date_joined")}),
     )

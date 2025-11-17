@@ -3,28 +3,19 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
-from .models import (
-    Course, Enrollment, Student, CourseMaterial
-)
+from .models import Course, Enrollment, CourseMaterial
 from .serializers import (
     CourseSerializer, EnrollmentSerializer, CourseMaterialSerializer
 )
-from api.permissions import (
-    IsAdminOrReadOnly, IsAdmin, IsStudent
-)
+from api.permissions import IsAdminOrReadOnly, IsAdmin, IsStudent
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from students.models import Student
 import logging
-from django.db.models import Q, F, Count
 
 logger = logging.getLogger(__name__)
 
-
 class CourseViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for managing Courses.
-    Write access is limited to Admins.
-    """
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = [IsAdminOrReadOnly] 
@@ -32,20 +23,15 @@ class CourseViewSet(viewsets.ModelViewSet):
     search_fields = ["code", "title"]
     ordering_fields = ["title", "duration_weeks", "total_fees"]
 
+
 class EnrollmentViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for managing Enrollments.
-    - Admins can manage all.
-    - Students can list their own.
-    """
-    queryset = Enrollment.objects.select_related("student__user", "batch__course", "batch__trainer")
+    queryset = Enrollment.objects.select_related("student__user", "course")
     serializer_class = EnrollmentSerializer
-    filterset_fields = ["status", "batch", "student"]
-    search_fields = ["student__user__first_name", "student__user__last_name", "batch__code"]
+    filterset_fields = ["status", "course", "student"]
+    search_fields = ["student__user__first_name", "student__user__last_name", "course__title"]
     ordering_fields = ["enrolled_on", "status"]
 
     def get_permissions(self):
-        """Admins can do anything, Students can only list/read."""
         if self.action == 'list':
             self.permission_classes = [IsAdmin | IsStudent]
         else:
@@ -53,50 +39,26 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
     
     def get_queryset(self):
-        """
-        Filters the queryset based on user role.
-        - Admins see all enrollments.
-        - Students see only their own enrollments.
-        """
         user = self.request.user
         if not user.is_authenticated:
             return Enrollment.objects.none()
         
         if user.is_staff:
-            base_queryset = super().get_queryset()
+            return super().get_queryset()
         else:
             try:
                 student_id = user.student.id
-                base_queryset = super().get_queryset().filter(student_id=student_id)
+                return super().get_queryset().filter(student_id=student_id)
             except Student.DoesNotExist:
                 return Enrollment.objects.none()
-            
-        queryset = base_queryset.annotate(
-            present_days_count=Count(
-                'student__attendanceentry', # Path to the entry
-                filter=Q(
-                    student__attendanceentry__status='P',
-                    # Ensure we only count attendance for the *same course*
-                    student__attendanceentry__attendance__batch__course=F('batch__course')
-                )
-            )
-        )
 
-        return queryset
 
 class CourseMaterialViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for managing Course Materials.
-    Accessed via nested route: /api/v1/courses/<course_pk>/materials/
-    - Admins have full CRUD access.
-    - Enrolled Students have read/download access.
-    """
     queryset = CourseMaterial.objects.all()
     serializer_class = CourseMaterialSerializer
-    parser_classes = [MultiPartParser, FormParser] # For file uploads
+    parser_classes = [MultiPartParser, FormParser]
 
     def get_permissions(self):
-        """Admins can manage, Authenticated users can read/download."""
         if self.action in ['list', 'retrieve', 'download']:
             self.permission_classes = [IsAuthenticated]
         else:
@@ -104,32 +66,25 @@ class CourseMaterialViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        """Filter materials by the course_pk in the URL."""
         return self.queryset.filter(
             course_id=self.kwargs.get("course_pk")
         ).select_related("course")
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def download(self, request, course_pk=None, pk=None):
-        """
-        Securely downloads the file for this material.
-        Accessible by Admins, or Students actively enrolled in this course.
-        """
         material = get_object_or_404(CourseMaterial, course_id=course_pk, pk=pk)
         
         if not material.file:
             return Response({"detail": "This material is a link, not a file."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Permission Check: Allow admins or enrolled students
         is_admin = request.user.is_staff
         is_enrolled = False
         if not is_admin:
             try:
                 student = request.user.student
-                # Check for an *active* enrollment in this course
                 is_enrolled = Enrollment.objects.filter(
                     student=student, 
-                    batch__course_id=course_pk,
+                    course_id=course_pk,
                     status="active"
                 ).exists()
             except Student.DoesNotExist:
@@ -139,7 +94,6 @@ class CourseMaterialViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Not authorized to download this file."}, status=status.HTTP_403_FORBIDDEN)
 
         try:
-            # Use FileResponse to stream the file efficiently
             return FileResponse(
                 material.file.open('rb'), 
                 as_attachment=True, 
@@ -154,26 +108,16 @@ class CourseMaterialViewSet(viewsets.ModelViewSet):
 
 
 class StudentMaterialsViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Read-only endpoint for a Student to see all materials
-    for their *actively enrolled* courses.
-    Accessed via: /api/v1/my-materials/
-    """
     serializer_class = CourseMaterialSerializer
     permission_classes = [IsStudent]
 
     def get_queryset(self):
-        """
-        Filters materials to only those for which the student
-        has an active enrollment.
-        """
         try:
             student = self.request.user.student
-            # Get IDs of all courses the student is actively enrolled in
             enrolled_course_ids = Enrollment.objects.filter(
                 student=student,
                 status="active"
-            ).values_list("batch__course_id", flat=True).distinct()
+            ).values_list("course_id", flat=True).distinct()
             
             return CourseMaterial.objects.filter(
                 course_id__in=enrolled_course_ids

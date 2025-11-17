@@ -3,64 +3,84 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from students.models import Student
 from courses.models import Course
+from django.db.models import Sum
 
 class FeesReceipt(models.Model):
-    MODE_CHOICES = [
+    PAYMENT_MODES = [
         ("cash", "Cash"),
         ("upi", "UPI"),
-        ("bank", "Bank Transfer"),
-        ("card", "Card"),
+        ("bank_transfer", "Bank Transfer"),
+        ("cheque", "Cheque"),
     ]
-    receipt_no = models.CharField(max_length=30, unique=True)
+
+    receipt_no = models.CharField(max_length=20, unique=True, editable=False)
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="receipts")
     course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=False)
     amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    mode = models.CharField(max_length=20, choices=MODE_CHOICES)
-    txn_id = models.CharField(max_length=50, blank=True)
-    date = models.DateField(auto_now_add=True)
+    date = models.DateField()
+    mode = models.CharField(max_length=20, choices=PAYMENT_MODES, default="cash")
+    txn_id = models.CharField(max_length=100, blank=True, help_text="Transaction ID for digital payments")
+    remarks = models.TextField(blank=True)
     posted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # A field to "lock" the receipt so it can't be edited/deleted after generation if needed
     locked = models.BooleanField(default=False)
-    pdf_file = models.FileField(upload_to="finance/receipts/", blank=True, null=True)
+
+    # For PDF file storage
+    pdf_file = models.FileField(upload_to="receipts/", blank=True, null=True)
 
     class Meta:
-        ordering = ["-date", "-id"]
+        ordering = ["-date", "-created_at"]
         indexes = [
             models.Index(fields=["receipt_no"]),
             models.Index(fields=["date"]),
-            models.Index(fields=["mode"]),
-            models.Index(fields=["locked"]),
         ]
         verbose_name = "Fees Receipt"
         verbose_name_plural = "Fees Receipts"
 
     def __str__(self):
-        return f"Receipt {self.receipt_no} - {self.student}"
+        return f"{self.receipt_no} - {self.student.user.get_full_name()}"
 
-    @property
-    def is_editable(self) -> bool:
-        return not self.locked
+    def save(self, *args, **kwargs):
+        if not self.receipt_no:
+            last_receipt = FeesReceipt.objects.order_by('-id').first()
+            if last_receipt and last_receipt.receipt_no.startswith('REC'):
+                try:
+                    last_num = int(last_receipt.receipt_no.split('-')[1])
+                    new_num = last_num + 1
+                except ValueError:
+                    new_num = 1
+            else:
+                new_num = 1
+            self.receipt_no = f"REC-{new_num:06d}"
+        super().save(*args, **kwargs)
+
 
 class Expense(models.Model):
     CATEGORY_CHOICES = [
-        ("material", "Material"),
+        ("rent", "Rent"),
+        ("electricity", "Electricity"),
+        ("salary", "Staff Salary"), # Generic salary (non-payroll)
+        ("materials", "Materials/Supplies"),
         ("maintenance", "Maintenance"),
-        ("salary", "Salary"),
+        ("marketing", "Marketing"),
         ("other", "Other"),
     ]
-    date = models.DateField(auto_now_add=True)
-    description = models.CharField(max_length=255)
+
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
+    title = models.CharField(max_length=200)
     amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    date = models.DateField()
+    description = models.TextField(blank=True)
+    receipt_image = models.ImageField(upload_to="expenses/", blank=True, null=True)
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-date", "-id"]
-        indexes = [
-            models.Index(fields=["date"]),
-            models.Index(fields=["category"]),
-        ]
+        ordering = ["-date", "-created_at"]
         verbose_name = "Expense"
         verbose_name_plural = "Expenses"
 
     def __str__(self):
-        return f"{self.get_category_display()} - {self.amount}"
+        return f"{self.title} ({self.amount})"

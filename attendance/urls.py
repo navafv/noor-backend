@@ -1,25 +1,12 @@
-"""
-URL configuration for the 'attendance' app.
-
-Registers ViewSets for:
-- `records`: Staff CRUD for daily attendance.
-- `analytics`: Staff-facing analytics endpoints.
-- `my-history`: Student-facing view of their own attendance.
-"""
-
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import AttendanceViewSet, StudentAttendanceViewSet
-from .views_analytics import AttendanceAnalyticsViewSet
+from .views import AttendanceViewSet
+from .views_analytics import AttendanceAnalyticsView
 
 router = DefaultRouter()
+router.register(r"records", AttendanceViewSet, basename="attendance")
 
-# e.g., /api/v1/attendance/records/
-router.register("records", AttendanceViewSet, basename="attendance")
-
-# e.g., /api/v1/attendance/analytics/batch/1/
-router.register("analytics", AttendanceAnalyticsViewSet, basename="attendance-analytics")
-
-# e.g., /api/v1/attendance/my-history/
-router.register("my-history", StudentAttendanceViewSet, basename="my-attendance-history")
-
-urlpatterns = router.urls
+urlpatterns = [
+    path("", include(router.urls)),
+    path("analytics/summary/", AttendanceAnalyticsView.as_view(), name="attendance-analytics"),
+]

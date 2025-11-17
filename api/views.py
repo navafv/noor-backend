@@ -1,21 +1,33 @@
-"""
-Core views for the 'api' app.
-"""
-
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from django.utils.timezone import now
+from django.db import connection
+from django.conf import settings
+import time
 
-@api_view(["GET"])
+@api_view(['GET'])
 @permission_classes([AllowAny])
 def health_check(request):
     """
-    A lightweight, public endpoint to verify that the API is running.
-    Useful for load balancers, uptime monitors, etc.
+    Simple health check endpoint to verify the backend is running
+    and can connect to the database.
     """
+    start_time = time.time()
+    db_status = "unknown"
+    
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+
+    duration = time.time() - start_time
+
     return Response({
         "status": "ok",
-        "time": now(),
-        "message": "Stitching Institute API is running smoothly."
+        "database": db_status,
+        "latency_ms": round(duration * 1000, 2),
+        "version": "1.0.0",
+        "mode": "development" if settings.DEBUG else "production"
     })

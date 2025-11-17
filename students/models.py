@@ -24,15 +24,18 @@ class Student(models.Model):
     def __str__(self) -> str:
         return f"{self.user.get_full_name()} ({self.reg_no})"
 
+
 class StudentMeasurement(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="measurements")
     date_taken = models.DateField(default=timezone.localdate)
+    
     neck = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     chest = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     waist = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     hips = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     sleeve_length = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     inseam = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    
     notes = models.TextField(blank=True)
 
     class Meta:

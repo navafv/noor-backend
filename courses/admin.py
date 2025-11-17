@@ -8,14 +8,16 @@ class CourseAdmin(admin.ModelAdmin):
     search_fields = ("code", "title")
     ordering = ("title",)
 
+
 @admin.register(Enrollment)
 class EnrollmentAdmin(admin.ModelAdmin):
-    list_display = ("student", "enrolled_on", "completion_date", "status")
-    list_filter = ("status",)
-    search_fields = ("student__user__first_name", "batch__code")
+    list_display = ("student", "course", "enrolled_on", "completion_date", "status")
+    list_filter = ("status", "course")
+    search_fields = ("student__user__first_name", "course__title")
     readonly_fields = ("enrolled_on", "completion_date")
     ordering = ("-enrolled_on",)
-    autocomplete_fields = ['student']
+    autocomplete_fields = ['student', 'course']
+
 
 @admin.register(CourseMaterial)
 class CourseMaterialAdmin(admin.ModelAdmin):

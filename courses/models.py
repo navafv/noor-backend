@@ -10,6 +10,7 @@ class Course(models.Model):
     total_fees = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     syllabus = models.TextField(blank=True)
     active = models.BooleanField(default=True)
+    
     required_attendance_days = models.PositiveIntegerField(
         default=36, 
         help_text="Total 'Present' days required to complete"
@@ -27,12 +28,14 @@ class Course(models.Model):
     def __str__(self):
         return f"{self.title} ({self.code})"
 
+
 class Enrollment(models.Model):
     STATUS_CHOICES = [
         ("active", "Active"),
         ("completed", "Completed"),
         ("dropped", "Dropped"),
     ]
+
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="enrollments")
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="enrollments")
     enrolled_on = models.DateField(auto_now_add=True)
@@ -50,19 +53,26 @@ class Enrollment(models.Model):
 
     def __str__(self):
         return f"{self.student.user.get_full_name()} → {self.course.title}"
-
+    
     def get_present_days_count(self):
-        from attendance.models import AttendanceEntry
+        """
+        Counts all 'Present' attendance entries for this student.
+        """
         return self.student.attendanceentry_set.filter(status="P").count()
-
+    
     def check_and_update_status(self):
+        """
+        Checks if the student's attendance meets the course requirement.
+        """
         if self.status == "active":
             present_count = self.get_present_days_count()
             required_count = self.course.required_attendance_days
+            
             if present_count >= required_count:
                 self.status = "completed"
                 self.completion_date = timezone.now().date()
                 self.save(update_fields=["status", "completion_date"])
+
 
 class CourseMaterial(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="materials")
@@ -82,6 +92,8 @@ class CourseMaterial(models.Model):
 
     def clean(self):
         if not self.file and not self.link:
-            raise models.ValidationError("Must provide either a file or a link.")
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Must provide either a file or a link.")
         if self.file and self.link:
-            raise models.ValidationError("Cannot provide both a file and a link.")
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Cannot provide both a file and a link.")

@@ -1,36 +1,33 @@
 from django.template.loader import render_to_string
+from io import BytesIO
 from xhtml2pdf import pisa
-from django.core.mail import send_mail
-import io
-import logging
-from .models import  FeesReceipt
 from django.conf import settings
 
-logger = logging.getLogger(__name__)
+def generate_receipt_pdf(receipt):
+    """
+    Generates a PDF for the given receipt object using xhtml2pdf.
+    Returns the raw PDF bytes.
+    """
+    context = {
+        "receipt": receipt,
+        "student": receipt.student,
+        "user": receipt.student.user,
+        "course": receipt.course,
+        "institute_name": "Noor Stitching Institute",
+        "institute_address": "123 Institute Road, City, State",
+        "institute_phone": "+91 98765 43210",
+    }
 
-def generate_receipt_pdf_bytes(receipt_id: int) -> bytes | None:
-    try:
-        receipt = FeesReceipt.objects.select_related(
-            "student__user", "course"
-        ).get(id=receipt_id)
-    except FeesReceipt.DoesNotExist:
-        logger.warning(f"Receipt {receipt_id} not found for PDF generation.")
-        return None
-    try:
-        context = {"receipt": receipt}
-        html_content = render_to_string("finance/receipt_template.html", context)
-        pdf_buffer = io.BytesIO()
-        pisa_status = pisa.CreatePDF(
-            html_content,
-            dest=pdf_buffer
-        )
-        if pisa_status.err:
-            logger.error(f"Error generating PDF for {receipt.receipt_no}: {pisa_status.err}")
-            return None
-        pdf_bytes = pdf_buffer.getvalue()
-        pdf_buffer.close()
-        logger.info(f"Successfully generated PDF bytes for {receipt.receipt_no}")
-        return pdf_bytes
-    except Exception as e:
-        logger.error(f"Error in generate_receipt_pdf_bytes for {receipt.receipt_no}: {e}", exc_info=True)
-        return None
+    # Render the HTML
+    html_string = render_to_string("finance/receipt_template.html", context)
+    
+    # Create a buffer to receive PDF data
+    result = BytesIO()
+    
+    # Generate PDF
+    # encoding='UTF-8' is important for handling symbols like Rupee
+    pdf = pisa.pisaDocument(BytesIO(html_string.encode("UTF-8")), result)
+    
+    if not pdf.err:
+        return result.getvalue()
+    return None

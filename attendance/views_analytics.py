@@ -1,65 +1,67 @@
-from django.db.models import Count, Q
-from rest_framework.decorators import action
-from rest_framework import viewsets, status
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from api.permissions import IsAdmin
 from .models import AttendanceEntry
-from students.models import Student
+from django.db.models import Count, Q
+from django.utils import timezone
+from datetime import timedelta
 
+class AttendanceAnalyticsView(APIView):
+    permission_classes = [IsAdmin]
 
-class AttendanceAnalyticsViewSet(viewsets.ViewSet):
-    """
-    Provides read-only analytical endpoints for attendance.
-    Permissions are checked manually within each action.
-    """
-    permission_classes = [IsAuthenticated] # Base permission
+    def get(self, request):
+        days = int(request.query_params.get("days", 30))
+        start_date = timezone.now().date() - timedelta(days=days)
 
-    @action(detail=False, methods=["get"], url_path="student/(?P<student_id>[^/.]+)")
-    def student_summary(self, request, student_id=None):
-        """
-        (Admin or Owning Student)
-        Returns a student-level attendance summary, aggregated by batch.
-        """
-        # Permission Check: Allow admin or the student themselves
-        try:
-            student_profile_id = request.user.student.id
-        except Student.DoesNotExist:
-            student_profile_id = None
-
-        is_owner = (str(student_profile_id) == str(student_id))
-        is_admin = request.user.is_staff
+        # 1. Overall Stats (in range)
+        entries = AttendanceEntry.objects.filter(attendance__date__gte=start_date)
+        total_entries = entries.count()
         
-        if not (is_owner or is_admin):
-            return Response(
-                {"detail": "You do not have permission to view this attendance data."}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        student = Student.objects.filter(id=student_id).select_related("user").first()
-        if not student:
-            return Response({"detail": "Student not found."}, status=404)
+        if total_entries == 0:
+            stats = {"present": 0, "absent": 0, "late": 0, "excused": 0, "rate": 0}
+        else:
+            present = entries.filter(status="P").count()
+            absent = entries.filter(status="A").count()
+            late = entries.filter(status="L").count()
+            excused = entries.filter(status="E").count()
+            
+            # 'Present' includes Late for calculation purposes often, but let's keep it strict P
+            # Calculate "Effective Presence"
+            effective_present = present + late
+            rate = round((effective_present / total_entries) * 100, 1)
 
-        # Aggregate attendance status for this student, grouped by batch
-        entries = (
+            stats = {
+                "present": present,
+                "absent": absent,
+                "late": late,
+                "excused": excused,
+                "rate": rate
+            }
+
+        # 2. Daily Trends (Last 7 days)
+        week_start = timezone.now().date() - timedelta(days=7)
+        daily_data = (
             AttendanceEntry.objects
-            .filter(student=student)
-            .values("attendance__batch__id", "attendance__batch__code", "attendance__batch__course__title")
+            .filter(attendance__date__gte=week_start)
+            .values("attendance__date")
             .annotate(
-                presents=Count("id", filter=Q(status="P")),
-                absents=Count("id", filter=Q(status="A")),
-                leaves=Count("id", filter=Q(status="L")),
-                total_days=Count("id")
+                present=Count("id", filter=Q(status="P")),
+                absent=Count("id", filter=Q(status="A")),
             )
-            .order_by("-total_days")
+            .order_by("attendance__date")
         )
+        
+        chart_data = [
+            {
+                "date": entry["attendance__date"].strftime("%Y-%m-%d"),
+                "present": entry["present"],
+                "absent": entry["absent"]
+            }
+            for entry in daily_data
+        ]
 
-        # Calculate percentages for each batch
-        for e in entries:
-            e["attendance_percentage"] = round((e["presents"] / e["total_days"] * 100) if e["total_days"] else 0, 2)
-
-        data = {
-            "student_name": student.user.get_full_name(),
-            "reg_no": student.reg_no,
-            "batches": list(entries),
-        }
-        return Response(data)
+        return Response({
+            "stats": stats,
+            "chart_data": chart_data
+        })

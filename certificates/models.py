@@ -26,5 +26,6 @@ class Certificate(models.Model):
         if is_new and not self.certificate_no:
             today = self.issue_date
             today_str = today.strftime("%Y%m%d")
+            # Format: CERT-YYYYMMDD-ID
             self.certificate_no = f"CERT-{today_str}-{self.id:04d}"
             super().save(update_fields=["certificate_no"])

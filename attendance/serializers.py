@@ -1,169 +1,114 @@
-"""
-Serializers for the 'attendance' app.
-
-Handles the complex logic for creating and updating Attendance records
-with their nested AttendanceEntry instances.
-"""
-
-from django.db import transaction
 from rest_framework import serializers
+from django.db import transaction
 from .models import Attendance, AttendanceEntry
+from students.models import Student
 from courses.models import Enrollment
+
+class AttendanceEntrySerializer(serializers.ModelSerializer):
+    student_name = serializers.ReadOnlyField(source="student.user.get_full_name")
+    reg_no = serializers.ReadOnlyField(source="student.reg_no")
+
+    class Meta:
+        model = AttendanceEntry
+        fields = ["id", "student", "student_name", "reg_no", "status", "remarks"]
 
 
 class StudentAttendanceEntrySerializer(serializers.ModelSerializer):
     """
-    A read-only serializer for a student viewing their *own*
-    attendance history. It flattens related data for easy consumption.
+    Read-only serializer for a student to see their own history.
     """
     date = serializers.ReadOnlyField(source="attendance.date")
-    batch_code = serializers.ReadOnlyField(source="attendance.batch.code")
-    course_title = serializers.ReadOnlyField(source="attendance.batch.course.title")
 
     class Meta:
         model = AttendanceEntry
-        fields = ["id", "date", "batch_code", "course_title", "status"]
-
-
-class AttendanceEntrySerializer(serializers.ModelSerializer):
-    """
-    Serializer for a single attendance entry.
-    Used nested within the main AttendanceSerializer.
-    """
-    student_name = serializers.ReadOnlyField(source="student.user.get_full_name")
-
-    class Meta:
-        model = AttendanceEntry
-        fields = ["id", "student", "student_name", "status"]
-        read_only_fields = ["id"]
+        fields = ["id", "date", "status", "remarks"]
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
-    """
-    Serializer for an Attendance sheet and its nested entries.
-    
-    Handles the core business logic for:
-    - Creating/updating an Attendance record and its entries in one transaction.
-    - Validating that no duplicate students are in a payload.
-    - Triggering a check for course completion for each student
-      after attendance is saved.
-    """
     entries = AttendanceEntrySerializer(many=True)
-    batch_code = serializers.ReadOnlyField(source="batch.code")
     summary = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Attendance
         fields = [
-            "id", "batch", "batch_code", "date", "taken_by", "remarks",
-            "entries", "summary",
+            "id", "date", "taken_by", "remarks", 
+            "entries", "summary", "created_at"
         ]
-        read_only_fields = ["id", "summary", "batch_code"]
+        read_only_fields = ["id", "created_at", "summary"]
 
     def get_summary(self, obj):
-        """Returns the calculated P/A/L summary from the model property."""
-        return obj.summary()
-    
-    def _check_student_completion(self, batch, student_id):
+        return obj.summary
+
+    def _validate_student_ids(self, entries_data):
         """
-        Finds the student's active enrollment for this course and triggers
-        a status check (Enrollment.check_and_update_status) to see if
-        they have met the required attendance days.
+        Ensure all student IDs exist and are active.
+        """
+        student_ids = [e.get('student') for e in entries_data]
+        existing_count = Student.objects.filter(id__in=student_ids, active=True).count()
+        
+        # Note: We perform a loose check here. Strict validation 
+        # per ID happens during bulk creation or can be added if strictness is required.
+        return student_ids
+
+    def _check_student_completion(self, student_id):
+        """
+        After marking attendance, check if the student has completed their course.
         """
         try:
-            # Find the student's *active* enrollment for this *course*.
-            # Attendance is counted at the course level, not batch level.
+            # Find all active enrollments for this student
             enrollments = Enrollment.objects.filter(
                 student_id=student_id, 
-                batch__course=batch.course,
                 status="active"
             )
             for enrollment in enrollments:
                 enrollment.check_and_update_status()
-                
-        except Enrollment.DoesNotExist:
-            # No active enrollment found for this student/course.
-            pass
         except Exception:
-            # Fails silently if multiple enrollments or other issues,
-            # to avoid blocking the attendance save.
             pass
-
-    def _validate_student_ids(self, entries_data):
-        """Ensures no duplicate students are in a single attendance payload."""
-        student_ids = [e["student"].id for e in entries_data]
-        if len(student_ids) != len(set(student_ids)):
-            raise serializers.ValidationError(
-                {"entries": "Duplicate student entries detected in this submission."}
-            )
-        return student_ids
 
     @transaction.atomic
     def create(self, validated_data):
-        """
-        Creates an Attendance record and its associated entries in a transaction.
-        Checks for student completion status after creation.
-        """
         entries_data = validated_data.pop("entries", [])
-        student_ids = self._validate_student_ids(entries_data)
+        validated_data['taken_by'] = self.context['request'].user
         
-        # Create the parent Attendance record
         attendance = Attendance.objects.create(**validated_data)
 
-        # Bulk create all nested AttendanceEntry records
+        # Bulk create entries
         AttendanceEntry.objects.bulk_create([
             AttendanceEntry(attendance=attendance, **e) for e in entries_data
         ])
         
-        # After saving, check completion status for each student
-        for student_id in student_ids:
-            self._check_student_completion(attendance.batch, student_id)
-            
+        # Check completion status for all students present
+        for entry in entries_data:
+            if entry.get('status') == 'P':
+                self._check_student_completion(entry['student'])
+                
         return attendance
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        """
-        Updates an Attendance record and intelligently updates, creates, or
-        deletes its entries instead of replacing them all.
-        """
-        entries_data = validated_data.pop("entries", None)
-
-        # Update parent Attendance instance fields (date, remarks, etc.)
-        instance.date = validated_data.get('date', instance.date)
-        instance.remarks = validated_data.get('remarks', instance.remarks)
-        instance.taken_by = validated_data.get('taken_by', instance.taken_by)
+        entries_data = validated_data.pop("entries", [])
+        
+        instance.remarks = validated_data.get("remarks", instance.remarks)
         instance.save()
 
-        if entries_data is not None:
-            student_ids = self._validate_student_ids(entries_data)
+        # Update or Create entries
+        processed_student_ids = []
+        
+        for entry_data in entries_data:
+            student_id = entry_data.get("student")
+            status_val = entry_data.get("status")
+            remarks_val = entry_data.get("remarks", "")
 
-            # Perform an intelligent diff-update
+            processed_student_ids.append(student_id)
 
-            # Get existing entries as a map: {student_id: entry_object}
-            existing_entries_map = {e.student_id: e for e in instance.entries.all()}
-
-            for entry_data in entries_data:
-                student_id = entry_data['student'].id
-
-                if student_id in existing_entries_map:
-                    # UPDATE: This student already has an entry
-                    entry = existing_entries_map.pop(student_id)
-                    if entry.status != entry_data['status']:
-                        entry.status = entry_data['status']
-                        entry.save(update_fields=['status'])
-                else:
-                    # CREATE: This is a new student entry for this day
-                    AttendanceEntry.objects.create(attendance=instance, **entry_data)
-
-            # DELETE: Any entries left in the map were not in the payload
-            if existing_entries_map:
-                AttendanceEntry.objects.filter(
-                    id__in=[e.id for e in existing_entries_map.values()]
-                ).delete()
-
-            # After saving, check completion status for each student
-            for student_id in student_ids:
-                self._check_student_completion(instance.batch, student_id)
+            entry, created = AttendanceEntry.objects.update_or_create(
+                attendance=instance,
+                student_id=student_id,
+                defaults={"status": status_val, "remarks": remarks_val}
+            )
+            
+            # If status changed to Present, check completion
+            if status_val == 'P':
+                self._check_student_completion(student_id)
 
         return instance

@@ -5,7 +5,4 @@ class CertificatesConfig(AppConfig):
     name = 'certificates'
 
     def ready(self):
-        """
-        Connects the signal handlers in certificates.signals when the app is loaded.
-        """
         import certificates.signals

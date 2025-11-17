@@ -3,8 +3,6 @@ from .models import Notification
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ("title", "user", "level", "is_read", "created_at")
-    list_filter = ("level", "is_read", "created_at")
-    search_fields = ("title", "message", "user__username")
-    readonly_fields = ("created_at",)
-    autocomplete_fields = ['user']
+    list_display = ("recipient", "title", "read", "created_at")
+    list_filter = ("read", "created_at")
+    search_fields = ("recipient__username", "title", "message")

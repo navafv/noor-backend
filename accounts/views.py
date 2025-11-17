@@ -21,46 +21,31 @@ import logging
 logger = logging.getLogger(__name__)
 
 class UserViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for User management.
-    - Admins can manage all users (full CRUD).
-    - Authenticated users can view/update their *own* profile via `/api/v1/users/me/`.
-    """
-    queryset = User.objects.select_related("role").order_by('username')
-    filterset_fields = ["is_active", "role"]
+    queryset = User.objects.order_by('username')
+    filterset_fields = ["is_active", "is_staff"]
     search_fields = ["username", "email", "first_name", "last_name", "phone"]
     ordering_fields = ["id", "username", "first_name", "last_name"]
     authentication_classes = [JWTAuthentication]
 
     def get_permissions(self):
-        """
-        - 'me' and 'set_password' actions are available to any authenticated user.
-        - All other actions (list, create, retrieve, update, delete) are Admin-only.
-        """
         if self.action in ["me", "set_password"]:
             return [IsAuthenticated()]
         return [IsAdmin()]
 
     def get_serializer_class(self):
-        """Return the appropriate serializer for the action."""
         if self.action == "create":
             return UserCreateSerializer
         if self.action == "set_password":
             return PasswordChangeSerializer
-        return UserSerializer # Default for list, retrieve, update
+        return UserSerializer 
 
     @action(detail=False, methods=["get", "patch", "put"], permission_classes=[IsAuthenticated])
     def me(self, request):
-        """
-        Retrieve (GET) or update (PATCH/PUT) the profile for the
-        currently authenticated user.
-        """
         user = request.user
         if request.method == 'GET':
             serializer = self.get_serializer(user)
             return Response(serializer.data, status=status.HTTP_200_OK)
         
-        # Handle PUT/PATCH for profile updates
         serializer = self.get_serializer(user, data=request.data, partial=(request.method == 'PATCH'))
         if serializer.is_valid():
             serializer.save()
@@ -70,10 +55,6 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=["post"], url_path="me/set-password")
     def set_password(self, request):
-        """
-        Allows the authenticated user to change their own password.
-        Requires 'old_password' and 'new_password'.
-        """
         serializer = self.get_serializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             serializer.save()
@@ -81,11 +62,6 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class ForgotPasswordView(generics.GenericAPIView):
-    """
-    Public endpoint to request a password reset email.
-    Accepts an 'email' field. If the user exists and is active,
-    sends an email with a unique reset link.
-    """
     permission_classes = [AllowAny]
     serializer_class = PasswordResetRequestSerializer
 
@@ -95,12 +71,9 @@ class ForgotPasswordView(generics.GenericAPIView):
         
         user = User.objects.get(email__iexact=serializer.validated_data['email'], is_active=True)
         
-        # Generate token and user ID
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         
-        # Build the reset link
-        # Assumes the first configured origin is the frontend URL
         frontend_url = settings.CORS_ALLOWED_ORIGINS[0] 
         reset_link = f"{frontend_url}/reset-password/{uidb64}/{token}/"
         
@@ -135,17 +108,13 @@ class ForgotPasswordView(generics.GenericAPIView):
 
 
 class ResetPasswordView(generics.GenericAPIView):
-    """
-    Public endpoint to confirm and set a new password using a token.
-    Accepts 'uidb64', 'token', and 'new_password'.
-    """
     permission_classes = [AllowAny]
     serializer_class = SetNewPasswordSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save() # This performs the password reset
+        serializer.save()
         
         return Response(
             {"detail": "Password has been reset successfully. You can now log in."},
