@@ -23,7 +23,11 @@ def generate_certificate_pdf_sync(cert_id):
     try:
         # Construct verification URL
         # Assumes the first CORS origin is the frontend
-        frontend_url = settings.CORS_ALLOWED_ORIGINS[0] 
+        if settings.CORS_ALLOWED_ORIGINS:
+            frontend_url = settings.CORS_ALLOWED_ORIGINS[0]
+        else:
+            frontend_url = "http://192.168.1.2:5173"
+            
         verify_url = f"{frontend_url}/verify-certificate/{cert.qr_hash}"
         
         duration_text = ""
@@ -50,7 +54,6 @@ def generate_certificate_pdf_sync(cert_id):
         result = BytesIO()
         
         # Generate PDF
-        # encoding='UTF-8' ensures special characters (like currency symbols) render correctly
         pdf = pisa.pisaDocument(BytesIO(html_content.encode("UTF-8")), result)
         
         if not pdf.err:
