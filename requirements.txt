@@ -13,3 +13,4 @@ weasyprint==66.0
 psycopg2-binary==2.9.11
 sentry-sdk==2.43.0
 dj-database-url==3.0.1
+python-dotenv==1.2.1
