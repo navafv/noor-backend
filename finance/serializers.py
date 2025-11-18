@@ -1,11 +1,11 @@
 from rest_framework import serializers
 from .models import FeesReceipt, Expense
 from courses.models import Enrollment
-from django.db import transaction
 
 class FeesReceiptSerializer(serializers.ModelSerializer):
     student_name = serializers.ReadOnlyField(source="student.user.get_full_name")
-    course_title = serializers.ReadOnlyField(source="course.title")
+    # FIXED: Use SerializerMethodField to handle deleted (null) courses safely
+    course_title = serializers.SerializerMethodField()
 
     class Meta:
         model = FeesReceipt
@@ -16,8 +16,13 @@ class FeesReceiptSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["receipt_no", "posted_by", "locked", "student_name", "pdf_file", "created_at"]
 
+    def get_course_title(self, obj):
+        """Return course title or a placeholder if the course was deleted."""
+        if not obj.course:
+            return "Deleted Course"
+        return obj.course.title
+
     def validate(self, attrs):
-        # FIX: Prevent editing if the receipt is locked
         if self.instance and self.instance.locked:
             raise serializers.ValidationError("This receipt is locked and cannot be modified.")
 
@@ -25,7 +30,6 @@ class FeesReceiptSerializer(serializers.ModelSerializer):
         student = attrs.get("student") or (self.instance.student if self.instance else None)
 
         if course and student:
-            # Ensure student is enrolled in the course
             if not Enrollment.objects.filter(student=student, course=course).exists():
                 raise serializers.ValidationError("Student is not enrolled in this course.")
 

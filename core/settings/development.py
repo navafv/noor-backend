@@ -33,4 +33,4 @@ LOGGING["root"]["level"] = "DEBUG"
 # INTERNAL_IPS = ["192.168.1.2", "127.0.0.1"]
 
 
-FRONTEND_URL = "192.168.1.2:5173"
+FRONTEND_URL = "http://192.168.1.2:5173"

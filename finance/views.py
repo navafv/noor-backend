@@ -17,7 +17,7 @@ class FeesReceiptViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'download_pdf']:
-            return [IsAdmin() | IsStudent()] 
+            return [(IsAdmin | IsStudent)()] 
         return [IsAdmin()]
 
     def get_queryset(self):
