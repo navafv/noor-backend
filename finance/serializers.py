@@ -17,6 +17,10 @@ class FeesReceiptSerializer(serializers.ModelSerializer):
         read_only_fields = ["receipt_no", "posted_by", "locked", "student_name", "pdf_file", "created_at"]
 
     def validate(self, attrs):
+        # FIX: Prevent editing if the receipt is locked
+        if self.instance and self.instance.locked:
+            raise serializers.ValidationError("This receipt is locked and cannot be modified.")
+
         course = attrs.get("course") or (self.instance.course if self.instance else None)
         student = attrs.get("student") or (self.instance.student if self.instance else None)
 

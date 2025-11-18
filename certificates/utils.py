@@ -5,6 +5,7 @@ from xhtml2pdf import pisa
 from django.conf import settings 
 from .models import Certificate
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +22,9 @@ def generate_certificate_pdf_sync(cert_id):
         return
 
     try:
-        # Construct verification URL
-        # Assumes the first CORS origin is the frontend
-        if settings.CORS_ALLOWED_ORIGINS:
-            frontend_url = settings.CORS_ALLOWED_ORIGINS[0]
-        else:
-            frontend_url = "http://192.168.1.2:5173"
-            
-        verify_url = f"{frontend_url}/verify-certificate/{cert.qr_hash}"
+        # Use a specific env var for the frontend URL, fallback to localhost
+        base_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5173")
+        verify_url = f"{base_url}/verify-certificate/{cert.qr_hash}"
         
         duration_text = ""
         if cert.course and cert.course.duration_weeks:
@@ -50,10 +46,7 @@ def generate_certificate_pdf_sync(cert_id):
         
         html_content = render_to_string("certificates/template.html", context)
         
-        # Create a buffer to receive PDF data
         result = BytesIO()
-        
-        # Generate PDF
         pdf = pisa.pisaDocument(BytesIO(html_content.encode("UTF-8")), result)
         
         if not pdf.err:

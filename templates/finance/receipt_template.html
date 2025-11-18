@@ -4,13 +4,12 @@
     <meta charset="utf-8">
     <title>Fee Receipt</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap');
         @page {
             size: A5 landscape;
             margin: 1cm;
         }
         body {
-            font-family: 'Poppins', sans-serif;
+            font-family: Helvetica, sans-serif; /* Poppins might not load in all envs without setup */
             font-size: 12px;
             color: #333;
         }
@@ -18,84 +17,56 @@
             width: 100%;
             border: 2px solid #1a3a69;
             padding: 20px;
-            box-sizing: border-box;
         }
         .header {
             text-align: center;
             border-bottom: 2px solid #1a3a69;
             padding-bottom: 10px;
+            margin-bottom: 20px;
         }
         .header h1 {
-            font-family: 'Poppins', sans-serif;
-            font-size: 28px;
             color: #1a3a69;
+            font-size: 24px;
             margin: 0;
-            font-weight: 700;
         }
         .header p {
-            font-size: 14px;
-            margin: 5px 0;
+            margin: 2px 0;
+            font-size: 10px;
         }
-        .details {
-            margin-top: 20px;
-            display: flex;
-            justify-content: space-between;
+        /* Layout using Tables instead of Flexbox */
+        .details-table {
+            width: 100%;
+            margin-bottom: 20px;
         }
-        .details .left {
-            width: 60%;
+        .details-table td {
+            vertical-align: top;
         }
-        .details .right {
-            width: 40%;
+        .right-align {
             text-align: right;
         }
-        .details p {
-            margin: 4px 0;
-            font-size: 13px;
-        }
-        .details strong {
-            color: #000;
-        }
-        .content {
-            margin-top: 30px;
-        }
-        .content table {
+        .content-table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 10px;
         }
-        .content th, .content td {
+        .content-table th, .content-table td {
             border: 1px solid #ccc;
-            padding: 10px;
+            padding: 8px;
             text-align: left;
         }
-        .content th {
+        .content-table th {
             background-color: #f0f4f8;
             color: #1a3a69;
         }
-        .total-section {
-            margin-top: 20px;
-            text-align: right;
-        }
-        .total-section p {
-            font-size: 18px;
-            font-weight: 700;
-            color: #1a3a69;
-            margin: 0;
-        }
         .footer {
-            margin-top: 40px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
+            margin-top: 30px;
+            width: 100%;
         }
-        .footer p {
-            margin: 0;
-            font-size: 12px;
-        }
-        .signature {
-            border-top: 1px solid #555;
-            padding-top: 5px;
-            width: 200px;
+        .signature-box {
             text-align: center;
+            border-top: 1px solid #333;
+            padding-top: 5px;
+            width: 150px;
         }
     </style>
 </head>
@@ -103,54 +74,59 @@
     <div class="container">
         <div class="header">
             <h1>Noor Stitching Institute</h1>
-            <p>Madrassa Building, Kacheriparamba, Munderi, 670591</p>
-            <p>Phone: +91 9526978708</p>
-            <h2>FEE RECEIPT</h2>
+            <p>Madrassa Building, Kacheriparamba, Munderi, 670591 | Phone: +91 9526978708</p>
+            <h3 style="margin: 10px 0 0 0;">FEE RECEIPT</h3>
         </div>
 
-        <div class="details">
-            <div class="left">
-                <p><strong>Student:</strong> {{ receipt.student.user.get_full_name }}</p>
-                <p><strong>Reg. No:</strong> {{ receipt.student.reg_no }}</p>
-                <p><strong>Course:</strong> {{ receipt.course.title }}</p>
-            </div>
-            <div class="right">
-                <p><strong>Receipt No:</strong> {{ receipt.receipt_no }}</p>
-                <p><strong>Date:</strong> {{ receipt.date|date:"F d, Y" }}</p>
-                <p><strong>Payment Mode:</strong> {{ receipt.get_mode_display }}</p>
-                {% if receipt.txn_id %}
+        <table class="details-table">
+            <tr>
+                <td width="60%">
+                    <p><strong>Student:</strong> {{ receipt.student.user.get_full_name }}</p>
+                    <p><strong>Reg. No:</strong> {{ receipt.student.reg_no }}</p>
+                    <p><strong>Course:</strong> {{ receipt.course.title }}</p>
+                </td>
+                <td width="40%" class="right-align">
+                    <p><strong>Receipt No:</strong> {{ receipt.receipt_no }}</p>
+                    <p><strong>Date:</strong> {{ receipt.date|date:"F d, Y" }}</p>
+                    <p><strong>Mode:</strong> {{ receipt.get_mode_display }}</p>
+                    {% if receipt.txn_id %}
                     <p><strong>Txn ID:</strong> {{ receipt.txn_id }}</p>
-                {% endif %}
-            </div>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+
+        <table class="content-table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th width="30%" class="right-align">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Tuition Fee for {{ receipt.course.title }}</td>
+                    <td class="right-align">₹ {{ receipt.amount|floatformat:2 }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="text-align: right; margin-top: 10px;">
+            <h3 style="color: #1a3a69;">Total Paid: ₹ {{ receipt.amount|floatformat:2 }}</h3>
         </div>
 
-        <div class="content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Description</th>
-                        <th>Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Tuition Fee for {{ receipt.course.title }}</td>
-                        <td>₹ {{ receipt.amount|floatformat:2 }}</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="total-section">
-            <p>Total Paid: ₹ {{ receipt.amount|floatformat:2 }}</p>
-        </div>
-
-        <div class="footer">
-            <p>Thank you for your payment!</p>
-            <div class="signature">
-                <p>Authorized Signatory</p>
-            </div>
-        </div>
+        <table class="footer">
+            <tr>
+                <td valign="bottom">
+                    <p>Thank you for your payment!</p>
+                </td>
+                <td align="right" valign="bottom">
+                    <div class="signature-box" style="margin-left: auto;">
+                        Authorized Signatory
+                    </div>
+                </td>
+            </tr>
+        </table>
     </div>
 </body>
 </html>

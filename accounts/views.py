@@ -17,6 +17,7 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.conf import settings
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,12 @@ class ForgotPasswordView(generics.GenericAPIView):
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         
-        frontend_url = settings.CORS_ALLOWED_ORIGINS[0] 
+        # FIX: Use FRONTEND_URL env var, fallback to localhost only if missing
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        # Remove trailing slash if present to avoid double slashes
+        if frontend_url.endswith('/'):
+            frontend_url = frontend_url[:-1]
+            
         reset_link = f"{frontend_url}/reset-password/{uidb64}/{token}/"
         
         context = {

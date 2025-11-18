@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies (lighter list for xhtml2pdf)
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
@@ -20,6 +20,9 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Copy project
 COPY . /app/
+
+# Set a dummy secret key for the build process so collectstatic works
+ENV DJANGO_SECRET_KEY=build_dummy_key_for_static_collection
 
 # Collect static files
 RUN python manage.py collectstatic --noinput
