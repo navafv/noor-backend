@@ -10,11 +10,11 @@ class FeesReceiptSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeesReceipt
         fields = [
-            "id", "receipt_no", "student", "student_name", "course", "course_title",
+            "id", "public_id", "receipt_no", "student", "student_name", "course", "course_title",
             "amount", "mode", "txn_id", "date", "posted_by", "remarks", 
             "locked", "pdf_file", "created_at"
         ]
-        read_only_fields = ["receipt_no", "posted_by", "locked", "student_name", "pdf_file", "created_at"]
+        read_only_fields = ["receipt_no", "public_id", "posted_by", "locked", "student_name", "pdf_file", "created_at"]
 
     def get_course_title(self, obj):
         """Return course title or a placeholder if the course was deleted."""

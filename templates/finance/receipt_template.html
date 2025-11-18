@@ -1,132 +1,240 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <title>Fee Receipt</title>
     <style>
         @page {
             size: A5 landscape;
-            margin: 1cm;
-        }
-        body {
-            font-family: Helvetica, sans-serif; /* Poppins might not load in all envs without setup */
-            font-size: 12px;
-            color: #333;
-        }
-        .container {
-            width: 100%;
-            border: 2px solid #1a3a69;
-            padding: 20px;
-        }
-        .header {
-            text-align: center;
-            border-bottom: 2px solid #1a3a69;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-        .header h1 {
-            color: #1a3a69;
-            font-size: 24px;
             margin: 0;
         }
-        .header p {
-            margin: 2px 0;
-            font-size: 10px;
+        body {
+            font-family: 'Helvetica', sans-serif;
+            color: #1f2937; /* gray-800 */
+            margin: 0;
+            padding: 0;
+            font-size: 13px;
+            line-height: 1.5;
         }
-        /* Layout using Tables instead of Flexbox */
-        .details-table {
-            width: 100%;
-            margin-bottom: 20px;
+        .container {
+            padding: 40px;
+            position: relative;
+            height: 100%;
+            box-sizing: border-box;
         }
-        .details-table td {
-            vertical-align: top;
+        
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #f43f5e; /* Brand Primary Color */
+            padding-bottom: 20px;
+            margin-bottom: 30px;
         }
-        .right-align {
+        .logo-section h1 {
+            font-size: 24px;
+            font-weight: 800;
+            color: #1a3a69;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .logo-section p {
+            font-size: 11px;
+            color: #6b7280;
+            margin: 5px 0 0 0;
+            max-width: 300px;
+        }
+        .receipt-title {
             text-align: right;
         }
-        .content-table {
+        .receipt-badge {
+            background-color: #f43f5e;
+            color: white;
+            padding: 6px 12px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        
+        /* Info Grid */
+        .info-grid {
+            display: table; /* Weasyprint handles table layouts very well */
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        .info-col {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+        }
+        .info-item {
+            margin-bottom: 8px;
+        }
+        .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #6b7280;
+            font-weight: 600;
+            display: block;
+        }
+        .value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        /* Table */
+        .table-container {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
         }
-        .content-table th, .content-table td {
-            border: 1px solid #ccc;
-            padding: 8px;
+        th {
+            background-color: #f9fafb;
+            color: #374151;
+            font-weight: 700;
             text-align: left;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 11px;
+            text-transform: uppercase;
         }
-        .content-table th {
-            background-color: #f0f4f8;
-            color: #1a3a69;
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
         }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        .amount-col {
+            text-align: right;
+        }
+
+        /* Total Section */
+        .total-row td {
+            background-color: #fdf2f4; /* Light red tint */
+            color: #be123c;
+            font-weight: bold;
+            font-size: 16px;
+            border-top: 2px solid #f43f5e;
+        }
+
+        /* Footer */
         .footer {
-            margin-top: 30px;
-            width: 100%;
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            right: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .thank-you {
+            font-size: 12px;
+            color: #6b7280;
+            font-style: italic;
         }
         .signature-box {
             text-align: center;
-            border-top: 1px solid #333;
-            padding-top: 5px;
-            width: 150px;
+        }
+        .signature-line {
+            width: 180px;
+            border-top: 1px solid #1f2937;
+            margin-bottom: 5px;
+        }
+        .auth-sign {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Noor Stitching Institute</h1>
-            <p>Madrassa Building, Kacheriparamba, Munderi, 670591 | Phone: +91 9526978708</p>
-            <h3 style="margin: 10px 0 0 0;">FEE RECEIPT</h3>
+            <div class="logo-section">
+                <h1>{{ institute_name }}</h1>
+                <p>{{ institute_address }}</p>
+                <p>Phone: {{ institute_phone }}</p>
+            </div>
+            <div class="receipt-title">
+                <div class="receipt-badge">Fee Receipt</div>
+            </div>
         </div>
 
-        <table class="details-table">
-            <tr>
-                <td width="60%">
-                    <p><strong>Student:</strong> {{ receipt.student.user.get_full_name }}</p>
-                    <p><strong>Reg. No:</strong> {{ receipt.student.reg_no }}</p>
-                    <p><strong>Course:</strong> {{ receipt.course.title }}</p>
-                </td>
-                <td width="40%" class="right-align">
-                    <p><strong>Receipt No:</strong> {{ receipt.receipt_no }}</p>
-                    <p><strong>Date:</strong> {{ receipt.date|date:"F d, Y" }}</p>
-                    <p><strong>Mode:</strong> {{ receipt.get_mode_display }}</p>
-                    {% if receipt.txn_id %}
-                    <p><strong>Txn ID:</strong> {{ receipt.txn_id }}</p>
-                    {% endif %}
-                </td>
-            </tr>
-        </table>
-
-        <table class="content-table">
-            <thead>
-                <tr>
-                    <th>Description</th>
-                    <th width="30%" class="right-align">Amount</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Tuition Fee for {{ receipt.course.title }}</td>
-                    <td class="right-align">₹ {{ receipt.amount|floatformat:2 }}</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div style="text-align: right; margin-top: 10px;">
-            <h3 style="color: #1a3a69;">Total Paid: ₹ {{ receipt.amount|floatformat:2 }}</h3>
+        <div class="info-grid">
+            <div class="info-col">
+                <div class="info-item">
+                    <span class="label">Student Name</span>
+                    <span class="value">{{ receipt.student.user.get_full_name }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Registration No</span>
+                    <span class="value">{{ receipt.student.reg_no }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Course</span>
+                    <span class="value">{{ receipt.course.title }}</span>
+                </div>
+            </div>
+            <div class="info-col" style="text-align: right;">
+                <div class="info-item">
+                    <span class="label">Receipt No</span>
+                    <span class="value">{{ receipt.receipt_no }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Date Paid</span>
+                    <span class="value">{{ receipt.date|date:"F d, Y" }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Payment Mode</span>
+                    <span class="value" style="text-transform: capitalize;">
+                        {{ receipt.get_mode_display }} 
+                        {% if receipt.txn_id %}<span style="font-weight: normal; color: #666; font-size: 11px;">(#{{ receipt.txn_id }})</span>{% endif %}
+                    </span>
+                </div>
+            </div>
         </div>
 
-        <table class="footer">
-            <tr>
-                <td valign="bottom">
-                    <p>Thank you for your payment!</p>
-                </td>
-                <td align="right" valign="bottom">
-                    <div class="signature-box" style="margin-left: auto;">
-                        Authorized Signatory
-                    </div>
-                </td>
-            </tr>
-        </table>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th width="70%">Description</th>
+                        <th width="30%" class="amount-col">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Tuition Fee for {{ receipt.course.title }}</td>
+                        <td class="amount-col">{{ currency_symbol }} {{ receipt.amount|floatformat:2 }}</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td style="text-align: right; padding-right: 20px;">TOTAL PAID</td>
+                        <td class="amount-col">{{ currency_symbol }} {{ receipt.amount|floatformat:2 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            <div class="thank-you">
+                Thank you for your payment!<br>
+                <span style="font-size: 10px; color: #9ca3af;">This is a computer generated receipt.</span>
+            </div>
+            <div class="signature-box">
+                <div class="signature-line"></div>
+                <div class="auth-sign">Authorized Signatory</div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

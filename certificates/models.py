@@ -22,10 +22,16 @@ class Certificate(models.Model):
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
-        super().save(*args, **kwargs)
+        super().save(*args, **kwargs) # 1. Initial save to get ID
+        
         if is_new and not self.certificate_no:
             today = self.issue_date
             today_str = today.strftime("%Y%m%d")
-            # Format: CERT-YYYYMMDD-ID
+            # 2. Generate Number
             self.certificate_no = f"CERT-{today_str}-{self.id:04d}"
+            # 3. Update DB with number
             super().save(update_fields=["certificate_no"])
+            
+            # 4. Generate PDF NOW (Data is fully ready)
+            from .utils import generate_certificate_pdf_sync
+            generate_certificate_pdf_sync(self.id)

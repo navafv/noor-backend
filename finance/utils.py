@@ -1,11 +1,10 @@
 from django.template.loader import render_to_string
-from io import BytesIO
-from xhtml2pdf import pisa
 from django.conf import settings
+import weasyprint
 
 def generate_receipt_pdf(receipt):
     """
-    Generates a PDF for the given receipt object using xhtml2pdf.
+    Generates a PDF for the given receipt object using WeasyPrint.
     Returns the raw PDF bytes.
     """
     context = {
@@ -14,20 +13,18 @@ def generate_receipt_pdf(receipt):
         "user": receipt.student.user,
         "course": receipt.course,
         "institute_name": "Noor Stitching Institute",
-        "institute_address": "123 Institute Road, City, State",
-        "institute_phone": "+91 98765 43210",
+        "institute_address": "Madrassa Building, Kacheriparamba, Munderi, 670591",
+        "institute_phone": "+91 9526978708",
+        # WeasyPrint handles Unicode better, but explicit currency is still safer
+        "currency_symbol": "Rs.", 
     }
 
-    # Render the HTML
     html_string = render_to_string("finance/receipt_template.html", context)
     
-    # Create a buffer to receive PDF data
-    result = BytesIO()
+    # base_url is required to load local images/styles if you use them
+    pdf_bytes = weasyprint.HTML(
+        string=html_string, 
+        base_url=str(settings.BASE_DIR)
+    ).write_pdf()
     
-    # Generate PDF
-    # encoding='UTF-8' is important for handling symbols like Rupee
-    pdf = pisa.pisaDocument(BytesIO(html_string.encode("UTF-8")), result)
-    
-    if not pdf.err:
-        return result.getvalue()
-    return None
+    return pdf_bytes

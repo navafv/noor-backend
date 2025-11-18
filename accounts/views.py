@@ -75,8 +75,10 @@ class ForgotPasswordView(generics.GenericAPIView):
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         
-        # FIX: Use FRONTEND_URL env var, fallback to localhost only if missing
-        frontend_url = os.getenv("FRONTEND_URL", "http://192.168.1.2:5173")
+        frontend_url = os.getenv("FRONTEND_URL")
+        if not frontend_url:
+            # Fallback for local dev only, or log a warning
+            frontend_url = "http://localhost:5173"
         # Remove trailing slash if present to avoid double slashes
         if frontend_url.endswith('/'):
             frontend_url = frontend_url[:-1]

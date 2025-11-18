@@ -3,7 +3,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from students.models import Student
 from courses.models import Course
-from django.db.models import Sum
+import uuid
 
 class FeesReceipt(models.Model):
     PAYMENT_MODES = [
@@ -23,18 +23,16 @@ class FeesReceipt(models.Model):
     remarks = models.TextField(blank=True)
     posted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
-    # A field to "lock" the receipt so it can't be edited/deleted after generation if needed
     locked = models.BooleanField(default=False)
-
-    # For PDF file storage
     pdf_file = models.FileField(upload_to="receipts/", blank=True, null=True)
+    public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
 
     class Meta:
         ordering = ["-date", "-created_at"]
         indexes = [
             models.Index(fields=["receipt_no"]),
             models.Index(fields=["date"]),
+            models.Index(fields=["public_id"]),
         ]
         verbose_name = "Fees Receipt"
         verbose_name_plural = "Fees Receipts"

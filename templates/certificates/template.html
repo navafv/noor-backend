@@ -1,125 +1,220 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Certificate</title>
+    <title>Certificate of Completion</title>
     <style>
+        /* NOTE: For Google Fonts to work, the server running WeasyPrint must have internet access.
+           Otherwise, you must download the .ttf files and load them locally.
+        */
+        @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Cinzel:wght@400;700&family=Lato:wght@300;400&display=swap');
+
         @page {
+            /* 1. Define Exact A4 Landscape Size */
             size: A4 landscape;
-            margin: 0;
+            margin: 0; /* Crucial: removes default browser/printer margins */
         }
+
         body {
             margin: 0;
             padding: 0;
-            font-family: Helvetica, sans-serif;
-            background-color: #f7f8fb;
+            /* 2. Match Body dimensions to Page Size */
+            width: 297mm;
+            height: 210mm;
+            font-family: 'Lato', Helvetica, sans-serif;
+            color: #1f2937; /* gray-800 */
+            background-color: #fff;
         }
+
+        /* Main Container acting as the "Canvas" */
         .certificate-container {
+            width: 297mm;
+            height: 210mm;
+            position: relative;
+            box-sizing: border-box;
+            padding: 10mm; /* Outer whitespace padding */
+        }
+
+        /* The Decorative Border */
+        .border-frame {
             width: 100%;
             height: 100%;
-            /* We simulate the frame with a table or div with padding */
-            padding: 40px; 
+            border: 4mm solid #1a3a69; /* Navy Blue */
             box-sizing: border-box;
-        }
-        .border-frame {
-            border: 10px solid #c0a15f;
-            background-color: #ffffff;
-            padding: 40px;
-            height: 90%; /* Approximate height adjustment */
-            text-align: center;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-image: radial-gradient(circle at center, #fff 50%, #f8fafc 100%);
         }
+
+        /* Inner thin gold border for elegance */
+        .border-frame::before {
+            content: "";
+            position: absolute;
+            top: 3mm;
+            left: 3mm;
+            right: 3mm;
+            bottom: 3mm;
+            border: 1mm solid #c0a15f; /* Gold */
+            pointer-events: none;
+        }
+
+        /* Watermark Background */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150mm;
+            opacity: 0.04;
+            z-index: 0;
+        }
+
+        /* Content Layer */
+        .content {
+            z-index: 10;
+            text-align: center;
+            width: 85%;
+        }
+
+        /* Typography */
         .institute-name {
-            font-size: 48px;
+            font-family: 'Cinzel', serif;
+            font-size: 32pt;
+            font-weight: 700;
             color: #1a3a69;
-            margin-bottom: 10px;
+            text-transform: uppercase;
+            margin-bottom: 2mm;
+            letter-spacing: 1px;
         }
-        .divider {
-            width: 150px;
-            height: 3px;
-            background-color: #c0a15f;
-            margin: 0 auto 20px auto;
+
+        .tagline {
+            font-family: 'Lato', sans-serif;
+            font-size: 10pt;
+            color: #c0a15f; /* Gold text */
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 10mm;
+            font-weight: 700;
         }
-        .header-text {
-            font-size: 36px;
+
+        .cert-title {
+            font-family: 'Cinzel', serif;
+            font-size: 28pt;
+            color: #111;
+            margin-bottom: 4mm;
+            font-weight: 400;
+        }
+
+        .presented-to {
+            font-size: 12pt;
+            color: #555;
+            font-style: italic;
+            margin-bottom: 2mm;
+        }
+
+        .student-name {
+            font-family: 'Great Vibes', cursive;
+            font-size: 60pt; /* Large calligraphy */
+            color: #be123c; /* Rose/Primary Color */
+            margin: 2mm 0 8mm 0;
+            line-height: 1;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .description {
+            font-size: 13pt;
+            line-height: 1.6;
+            color: #374151;
+            margin: 0 auto 12mm auto;
+            max-width: 220mm;
+        }
+
+        .bold-highlight {
+            font-weight: 700;
+            color: #1a3a69;
+        }
+
+        /* Signatures Area */
+        .signatures {
+            display: flex; /* WeasyPrint supports flexbox */
+            justify-content: space-between;
+            width: 70%;
+            margin: 0 auto 10mm auto;
+        }
+
+        .signature-block {
+            text-align: center;
+            width: 60mm;
+        }
+
+        .signature-line {
+            border-top: 0.5mm solid #333;
+            margin-top: 10mm; /* Space for manual signature */
+            margin-bottom: 2mm;
+        }
+
+        .signature-title {
+            font-size: 10pt;
+            font-weight: 700;
             text-transform: uppercase;
             color: #1a3a69;
-            margin-bottom: 10px;
         }
-        .subtitle {
-            font-size: 16px;
-            color: #555;
-            margin-bottom: 20px;
-        }
-        .student-name {
-            font-size: 50px;
-            color: #c0a15f;
-            margin: 20px 0;
-            font-weight: bold;
-        }
-        .description {
-            font-size: 16px;
-            line-height: 1.5;
-            color: #444;
-            margin: 0 auto;
-            width: 80%;
-        }
-        /* Signatures Table */
-        .signatures-table {
-            width: 80%;
-            margin: 80px auto 0 auto;
-        }
-        .signature-line {
-            border-top: 1px solid #333;
-            padding-top: 5px;
-            font-weight: bold;
-            width: 200px;
-            margin: 0 auto;
-        }
+
+        /* Footer / Verification */
         .footer {
             position: absolute;
-            bottom: 20px;
-            left: 0;
-            right: 0;
+            bottom: 8mm;
+            width: 100%;
             text-align: center;
-            font-size: 10px;
-            color: #777;
+            font-size: 9pt;
+            color: #6b7280;
+        }
+        .verify-link {
+            color: #1a3a69;
+            text-decoration: none;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div class="certificate-container">
         <div class="border-frame">
-            <div class="institute-name">Noor Stitching Institute</div>
-            <div class="divider"></div>
+            
+            <div class="content">
+                <div class="institute-name">Noor Stitching Institute</div>
+                <div class="tagline">Excellence in Fashion Design & Stitching</div>
 
-            <div class="header-text">Certificate of Completion</div>
-            <div class="subtitle">This is proudly presented to</div>
+                <div class="cert-title">Certificate of Completion</div>
+                <div class="presented-to">This certificate is proudly presented to</div>
 
-            <div class="student-name">{{ certificate.student.user.get_full_name }}</div>
+                <div class="student-name">{{ certificate.student.user.get_full_name }}</div>
 
-            <div class="description">
-                in recognition of the successful completion of the 
-                <strong>{{ duration_text }} {{ certificate.course.title }}</strong> 
-                program. <br/><br/>
-                Through dedication and creative skill, {{ certificate.student.user.first_name }} has demonstrated outstanding proficiency 
-                and commitment in the art of stitching and garment design.
+                <div class="description">
+                    For successfully completing the 
+                    <span class="bold-highlight">{{ duration_text }} {{ certificate.course.title }}</span> 
+                    program.<br>
+                    Your dedication, creativity, and technical proficiency in the art of stitching and garment design have been exemplary.
+                </div>
+
+                <div class="signatures">
+                    <div class="signature-block">
+                        <div class="signature-line"></div>
+                        <div class="signature-title">Authorized Signatory</div>
+                    </div>
+                    <div class="signature-block">
+                        <div class="signature-line"></div>
+                        <div class="signature-title">Director</div>
+                    </div>
+                </div>
             </div>
 
-            <table class="signatures-table">
-                <tr>
-                    <td align="center">
-                        <div class="signature-line">Authorized Signatory</div>
-                    </td>
-                    <td align="center">
-                        <div class="signature-line">Director</div>
-                    </td>
-                </tr>
-            </table>
-
             <div class="footer">
-                Certificate No: {{ certificate.certificate_no }} | Issued: {{ certificate.issue_date|date:"F d, Y" }} | 
-                Verify: {{ verify_url }}
+                Certificate ID: {{ certificate.certificate_no }} &nbsp;|&nbsp; 
+                Issued: {{ certificate.issue_date|date:"F d, Y" }} &nbsp;|&nbsp; 
+                Verify at: <a href="{{ verify_url }}" class="verify-link">{{ verify_url }}</a>
             </div>
         </div>
     </div>
