@@ -24,7 +24,7 @@ class FeesReceipt(models.Model):
     posted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     locked = models.BooleanField(default=False)
-    pdf_file = models.FileField(upload_to="receipts/", blank=True, null=True)
+    # pdf_file = models.FileField(upload_to="receipts/", blank=True, null=True)
     public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
 
     class Meta:

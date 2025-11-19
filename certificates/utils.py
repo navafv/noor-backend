@@ -8,12 +8,12 @@ import os
 
 logger = logging.getLogger(__name__)
 
-def generate_certificate_pdf_sync(cert_id):
+def generate_certificate_pdf(cert):
     """
     Generates a PDF for a specific Certificate instance using WeasyPrint.
     """
     try:
-        cert = Certificate.objects.select_related("student__user", "course").get(id=cert_id)
+        cert = Certificate.objects.select_related("student__user", "course").get(id=cert)
     except Certificate.DoesNotExist:
         return
     
@@ -53,8 +53,9 @@ def generate_certificate_pdf_sync(cert_id):
             base_url=str(settings.BASE_DIR)
         ).write_pdf()
         
-        file_name = f"{cert.certificate_no}.pdf"
-        cert.pdf_file.save(file_name, ContentFile(pdf_bytes), save=True)
+        # file_name = f"{cert.certificate_no}.pdf"
+        # cert.pdf_file.save(file_name, ContentFile(pdf_bytes), save=True)
 
     except Exception as e:
         logger.error(f"Error generating PDF for {cert.certificate_no}: {e}", exc_info=True)
+        return None

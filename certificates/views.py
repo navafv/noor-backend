@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from api.permissions import IsAdmin, IsStudent
 from .models import Certificate
 from .serializers import CertificateSerializer
+from .utils import generate_certificate_pdf
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 
@@ -57,17 +58,29 @@ class CertificateViewSet(viewsets.ModelViewSet):
         if not (is_owner or is_admin):
             return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
             
-        if not cert.pdf_file:
-            return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
+        # if not cert.pdf_file:
+        #     return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        try:
-            return FileResponse(
-                cert.pdf_file.open('rb'), 
-                as_attachment=True, 
-                filename=cert.pdf_file.name.split('/')[-1]
-            )
-        except FileNotFoundError:
-            return Response({"detail": "File not found on server."}, status=status.HTTP_404_NOT_FOUND)
+        pdf_content = generate_certificate_pdf(cert)
+
+        if not pdf_content:
+             return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return FileResponse(
+            pdf_content, 
+            as_attachment=True, 
+            filename=f"{cert.certificate_no}.pdf", # Use certificate_no for filename
+            content_type='application/pdf'
+        )
+
+        # try:
+        #     return FileResponse(
+        #         cert.pdf_file.open('rb'), 
+        #         as_attachment=True, 
+        #         filename=cert.pdf_file.name.split('/')[-1]
+        #     )
+        # except FileNotFoundError:
+        #     return Response({"detail": "File not found on server."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class StudentCertificateViewSet(viewsets.ReadOnlyModelViewSet):

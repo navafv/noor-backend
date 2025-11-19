@@ -39,25 +39,37 @@ class FeesReceiptViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='download')
     def download_pdf(self, request, pk=None):
         receipt = self.get_object()
+
+        pdf_content = generate_receipt_pdf(receipt) # <-- Generate on the fly
+
+        if not pdf_content:
+            return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return FileResponse(
+            pdf_content, # Stream the bytes directly
+            as_attachment=True, 
+            filename=f"Receipt_{receipt.receipt_no}.pdf",
+            content_type='application/pdf'
+        )
         
         # Generate PDF if it doesn't exist
-        if not receipt.pdf_file:
-            pdf_content = generate_receipt_pdf(receipt)
-            if pdf_content:
-                from django.core.files.base import ContentFile
-                filename = f"Receipt_{receipt.receipt_no}.pdf"
-                receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
-            else:
-                return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # if not receipt.pdf_file:
+        #     pdf_content = generate_receipt_pdf(receipt)
+        #     if pdf_content:
+        #         from django.core.files.base import ContentFile
+        #         filename = f"Receipt_{receipt.receipt_no}.pdf"
+        #         receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
+        #     else:
+        #         return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        try:
-            return FileResponse(
-                receipt.pdf_file.open('rb'), 
-                as_attachment=True, 
-                filename=f"Receipt_{receipt.receipt_no}.pdf"
-            )
-        except FileNotFoundError:
-            return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
+        # try:
+        #     return FileResponse(
+        #         receipt.pdf_file.open('rb'), 
+        #         as_attachment=True, 
+        #         filename=f"Receipt_{receipt.receipt_no}.pdf"
+        #     )
+        # except FileNotFoundError:
+        #     return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
         
     @action(detail=False, methods=['get'], url_path='public/(?P<public_id>[^/.]+)')
     def download_public(self, request, public_id=None):
@@ -65,25 +77,37 @@ class FeesReceiptViewSet(viewsets.ModelViewSet):
         Public endpoint to download receipt using UUID. No login required.
         """
         receipt = get_object_or_404(FeesReceipt, public_id=public_id)
+
+        pdf_content = generate_receipt_pdf(receipt) # <-- Generate on the fly
+
+        if not pdf_content:
+            return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return FileResponse(
+            pdf_content, # Stream the bytes directly
+            as_attachment=True, 
+            filename=f"Receipt_{receipt.receipt_no}.pdf",
+            content_type='application/pdf'
+        )
         
         # Generate PDF if missing
-        if not receipt.pdf_file:
-            pdf_content = generate_receipt_pdf(receipt)
-            if pdf_content:
-                from django.core.files.base import ContentFile
-                filename = f"Receipt_{receipt.receipt_no}.pdf"
-                receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
-            else:
-                return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # if not receipt.pdf_file:
+        #     pdf_content = generate_receipt_pdf(receipt)
+        #     if pdf_content:
+        #         from django.core.files.base import ContentFile
+        #         filename = f"Receipt_{receipt.receipt_no}.pdf"
+        #         receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
+        #     else:
+        #         return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        try:
-            return FileResponse(
-                receipt.pdf_file.open('rb'), 
-                as_attachment=True, 
-                filename=f"Receipt_{receipt.receipt_no}.pdf"
-            )
-        except FileNotFoundError:
-            return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
+        # try:
+        #     return FileResponse(
+        #         receipt.pdf_file.open('rb'), 
+        #         as_attachment=True, 
+        #         filename=f"Receipt_{receipt.receipt_no}.pdf"
+        #     )
+        # except FileNotFoundError:
+        #     return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class ExpenseViewSet(viewsets.ModelViewSet):
