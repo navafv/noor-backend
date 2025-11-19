@@ -6,7 +6,7 @@ from api.permissions import IsAdmin, IsStudent
 from .models import Certificate
 from .serializers import CertificateSerializer
 from .utils import generate_certificate_pdf
-from django.http import FileResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 
 class CertificateViewSet(viewsets.ModelViewSet):
@@ -64,14 +64,12 @@ class CertificateViewSet(viewsets.ModelViewSet):
         pdf_content = generate_certificate_pdf(cert)
 
         if not pdf_content:
-             return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": "Error generating PDF. Check server logs for WeasyPrint errors."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        return FileResponse(
-            pdf_content, 
-            as_attachment=True, 
-            filename=f"{cert.certificate_no}.pdf", # Use certificate_no for filename
-            content_type='application/pdf'
-        )
+        # Stream the raw bytes with correct content type
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{cert.certificate_no}.pdf"'
+        return response
 
         # try:
         #     return FileResponse(

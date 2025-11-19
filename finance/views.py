@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny
 from .models import FeesReceipt, Expense
 from .serializers import FeesReceiptSerializer, ExpenseSerializer
 from api.permissions import IsAdmin, IsStudent
-from django.http import FileResponse
+from django.http import HttpResponse
 from .utils import generate_receipt_pdf
 from django.shortcuts import get_object_or_404
 
@@ -45,12 +45,9 @@ class FeesReceiptViewSet(viewsets.ModelViewSet):
         if not pdf_content:
             return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        return FileResponse(
-            pdf_content, # Stream the bytes directly
-            as_attachment=True, 
-            filename=f"Receipt_{receipt.receipt_no}.pdf",
-            content_type='application/pdf'
-        )
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Receipt_{receipt.receipt_no}.pdf"'
+        return response
         
         # Generate PDF if it doesn't exist
         # if not receipt.pdf_file:
@@ -83,12 +80,9 @@ class FeesReceiptViewSet(viewsets.ModelViewSet):
         if not pdf_content:
             return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        return FileResponse(
-            pdf_content, # Stream the bytes directly
-            as_attachment=True, 
-            filename=f"Receipt_{receipt.receipt_no}.pdf",
-            content_type='application/pdf'
-        )
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Receipt_{receipt.receipt_no}.pdf"'
+        return response
         
         # Generate PDF if missing
         # if not receipt.pdf_file:

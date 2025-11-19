@@ -12,13 +12,10 @@ def generate_certificate_pdf(cert):
     """
     Generates a PDF for a specific Certificate instance using WeasyPrint.
     """
-    try:
-        cert = Certificate.objects.select_related("student__user", "course").get(id=cert)
-    except Certificate.DoesNotExist:
-        return
-    
-    # if cert.pdf_file:
-    #     return
+
+    # Check if the object is None for early exit before context processing
+    if not cert:
+        return None
 
     try:
         # Env var handling
@@ -26,7 +23,7 @@ def generate_certificate_pdf(cert):
         if not frontend_url:
              frontend_url = "http://localhost:5173"
              
-        verify_url = f"{frontend_url}/verify-certificate/{cert.qr_hash}"
+        verify_url = f"{frontend_url.rstrip('/')}/verify-certificate/{cert.qr_hash}"
         
         duration_text = ""
         if cert.course and cert.course.duration_weeks:
@@ -52,10 +49,13 @@ def generate_certificate_pdf(cert):
             string=html_content,
             base_url=str(settings.BASE_DIR)
         ).write_pdf()
+
+        return pdf_bytes
         
         # file_name = f"{cert.certificate_no}.pdf"
         # cert.pdf_file.save(file_name, ContentFile(pdf_bytes), save=True)
 
     except Exception as e:
-        logger.error(f"Error generating PDF for {cert.certificate_no}: {e}", exc_info=True)
+        # Log the specific error for internal debugging
+        logger.error(f"WeasyPrint Error for CERT {cert.certificate_no}: {e}", exc_info=True)
         return None
