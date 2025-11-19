@@ -11,10 +11,10 @@ class CertificateSerializer(serializers.ModelSerializer):
         fields = [
             "id", "certificate_no", "student", "student_name",
             "course", "course_title", "issue_date", "qr_hash",
-            "remarks", "revoked", "pdf_file"
+            "remarks", "revoked"
         ]
         read_only_fields = [
-            "certificate_no", "issue_date", "qr_hash", "pdf_file", 
+            "certificate_no", "issue_date", "qr_hash", 
             "student_name", "course_title"
         ]
 

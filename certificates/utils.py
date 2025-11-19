@@ -17,8 +17,8 @@ def generate_certificate_pdf(cert):
     except Certificate.DoesNotExist:
         return
     
-    if cert.pdf_file:
-        return
+    # if cert.pdf_file:
+    #     return
 
     try:
         # Env var handling

@@ -4,7 +4,6 @@ from courses.models import Enrollment
 
 class FeesReceiptSerializer(serializers.ModelSerializer):
     student_name = serializers.ReadOnlyField(source="student.user.get_full_name")
-    # FIXED: Use SerializerMethodField to handle deleted (null) courses safely
     course_title = serializers.SerializerMethodField()
 
     class Meta:
@@ -12,9 +11,9 @@ class FeesReceiptSerializer(serializers.ModelSerializer):
         fields = [
             "id", "public_id", "receipt_no", "student", "student_name", "course", "course_title",
             "amount", "mode", "txn_id", "date", "posted_by", "remarks", 
-            "locked", "pdf_file", "created_at"
+            "locked", "created_at"
         ]
-        read_only_fields = ["receipt_no", "public_id", "posted_by", "locked", "student_name", "pdf_file", "created_at"]
+        read_only_fields = ["receipt_no", "public_id", "posted_by", "locked", "student_name", "created_at"]
 
     def get_course_title(self, obj):
         """Return course title or a placeholder if the course was deleted."""
