@@ -14,7 +14,7 @@ class EnrollmentAdmin(admin.ModelAdmin):
     list_display = ("student", "course", "enrolled_on", "completion_date", "status")
     list_filter = ("status", "course")
     search_fields = ("student__user__first_name", "course__title")
-    readonly_fields = ["completion_date"]
+    readonly_fields = ("enrolled_on", "completion_date")
     ordering = ("-enrolled_on",)
     autocomplete_fields = ['student', 'course']
 
