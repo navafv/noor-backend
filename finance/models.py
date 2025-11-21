@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models,transaction
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from students.models import Student
@@ -39,20 +39,27 @@ class FeesReceipt(models.Model):
 
     def __str__(self):
         return f"{self.receipt_no} - {self.student.user.get_full_name()}"
-
+    
     def save(self, *args, **kwargs):
         if not self.receipt_no:
-            last_receipt = FeesReceipt.objects.order_by('-id').first()
-            if last_receipt and last_receipt.receipt_no.startswith('REC'):
-                try:
-                    last_num = int(last_receipt.receipt_no.split('-')[1])
-                    new_num = last_num + 1
-                except ValueError:
+            with transaction.atomic():
+                # Lock the table rows to prevent race conditions
+                # We get the last receipt created
+                last_receipt = FeesReceipt.objects.select_for_update().order_by('-id').first()
+                
+                if last_receipt and last_receipt.receipt_no.startswith('REC'):
+                    try:
+                        last_num = int(last_receipt.receipt_no.split('-')[1])
+                        new_num = last_num + 1
+                    except ValueError:
+                        new_num = 1
+                else:
                     new_num = 1
-            else:
-                new_num = 1
-            self.receipt_no = f"REC-{new_num:06d}"
-        super().save(*args, **kwargs)
+                
+                self.receipt_no = f"REC-{new_num:06d}"
+                super().save(*args, **kwargs)
+        else:
+            super().save(*args, **kwargs)
 
 
 class Expense(models.Model):
