@@ -22,36 +22,22 @@ from sendgrid.helpers.mail import Mail
 
 logger = logging.getLogger(__name__)
 
-def send_sendgrid_email(to_email, subject, html_message, text_message=None):
-    """
-    Sends an email using SendGrid's HTTP API.
-    """
-    message = Mail(
-        from_email=settings.EMAIL_SENDER,
-        to_emails=to_email,
-        subject=subject,
-        html_content=html_message,
-    )
-
-    if text_message:
-        message.content = [
-            {
-                "type": "text/plain",
-                "value": text_message
-            },
-            {
-                "type": "text/html",
-                "value": html_message
-            }
-        ]
-
+@staticmethod
+def send_sendgrid_email(to_email, subject, html_content):
     try:
+        message = Mail(
+            from_email=settings.EMAIL_SENDER,
+            to_emails=to_email,
+            subject=subject,
+            html_content=html_content
+        )
+
         sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
         response = sg.send(message)
-        logger.info(f"SendGrid Response Code: {response.status_code}")
         return response.status_code
+
     except Exception as e:
-        logger.error(f"SendGrid error: {e}")
+        print("SendGrid Error:", str(e))
         return None
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -131,21 +117,22 @@ class ForgotPasswordView(generics.GenericAPIView):
         }
         
         html_message = render_to_string("account/password_reset_email.html", context)
-        plain_message = f"Click the link to reset your password: {reset_link}"
 
         # Send via SendGrid API
-        result = send_sendgrid_email(
-            to_email=user.email,
-            subject="Reset Your Password - Noor Institute",
-            html_message=html_message,
-            text_message=plain_message
+        result = ForgotPasswordView.send_sendgrid_email(
+            user.email,
+            "Password Reset for Noor Institute",
+            html_message
         )
 
-        if not result or result >= 400:
+        if result != 202:
+            logger.error(f"SendGrid failed with status {result}")
             return Response(
-                {"detail": "Error sending email. Please try again later."},
+                {"detail": "Email sending failed. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+        logger.info(f"Password reset email sent to {user.email}")
 
         return Response(
             {"detail": "Password reset link has been sent to your email."},
