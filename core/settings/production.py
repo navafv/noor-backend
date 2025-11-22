@@ -29,14 +29,8 @@ DATABASES = {
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # --- Email ---
-# Use SMTP backend for production
-EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
-EMAIL_HOST = os.getenv("EMAIL_HOST", "")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587) or 587)
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.getenv("SENDGRID_API_KEY", "")
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "1") == "1"
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", DEFAULT_FROM_EMAIL)
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+EMAIL_SENDER = os.getenv("EMAIL_SENDER", "no-reply@noorinstitute.com")
 
 # --- Production Security ---
 SECURE_SSL_REDIRECT = True

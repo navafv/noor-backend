@@ -13,13 +13,46 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
-from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.conf import settings
 import logging
 import os
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 logger = logging.getLogger(__name__)
+
+def send_sendgrid_email(to_email, subject, html_message, text_message=None):
+    """
+    Sends an email using SendGrid's HTTP API.
+    """
+    message = Mail(
+        from_email=settings.EMAIL_SENDER,
+        to_emails=to_email,
+        subject=subject,
+        html_content=html_message,
+    )
+
+    if text_message:
+        message.content = [
+            {
+                "type": "text/plain",
+                "value": text_message
+            },
+            {
+                "type": "text/html",
+                "value": html_message
+            }
+        ]
+
+    try:
+        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        response = sg.send(message)
+        logger.info(f"SendGrid Response Code: {response.status_code}")
+        return response.status_code
+    except Exception as e:
+        logger.error(f"SendGrid error: {e}")
+        return None
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.order_by('username')
@@ -69,8 +102,15 @@ class ForgotPasswordView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        user = User.objects.get(email__iexact=serializer.validated_data['email'], is_active=True)
+
+        email = serializer.validated_data["email"]
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+
+        if not user:
+            return Response(
+                {"detail": "If this email exists, a reset link will be sent."},
+                status=status.HTTP_200_OK
+            )
         
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
@@ -90,20 +130,18 @@ class ForgotPasswordView(generics.GenericAPIView):
             'reset_link': reset_link,
         }
         
-        email_message_html = render_to_string('account/password_reset_email.html', context)
-        email_message_plain = f"Click here to reset your password: {reset_link}"
-        
-        try:
-            send_mail(
-                subject="Password Reset for Noor Institute",
-                message=email_message_plain,
-                html_message=email_message_html,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-            )
-            logger.info(f"Password reset email sent to {user.email}")
-        except Exception as e:
-            logger.error(f"Failed to send password reset email to {user.email}: {e}")
+        html_message = render_to_string("account/password_reset_email.html", context)
+        plain_message = f"Click the link to reset your password: {reset_link}"
+
+        # Send via SendGrid API
+        result = send_sendgrid_email(
+            to_email=user.email,
+            subject="Reset Your Password - Noor Institute",
+            html_message=html_message,
+            text_message=plain_message
+        )
+
+        if not result or result >= 400:
             return Response(
                 {"detail": "Error sending email. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
