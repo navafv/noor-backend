@@ -119,10 +119,9 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=int(os.getenv("JWT_REFRESH_DAYS", "7"))),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
-
-# Robust splitting that ignores surrounding spaces
 def get_list(env_var, default):
-    return [x.strip() for x in os.getenv(env_var, default).split(",") if x.strip()]
+    val = os.getenv(env_var, default)
+    return [x.strip() for x in val.split(",") if x.strip()]
 
 CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://192.168.1.2:5173,http://localhost:5173,http://127.0.0.1:5173").split(",")
 CORS_ALLOW_CREDENTIALS = True
