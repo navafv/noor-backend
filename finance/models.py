@@ -1,4 +1,4 @@
-from django.db import models,transaction
+from django.db import models, transaction
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from students.models import Student
@@ -6,25 +6,27 @@ from courses.models import Course
 import uuid
 
 class FeesReceipt(models.Model):
-    PAYMENT_MODES = [
-        ("cash", "Cash"),
-        ("upi", "UPI"),
-        ("bank_transfer", "Bank Transfer"),
-        ("cheque", "Cheque"),
-    ]
+    class PaymentMode(models.TextChoices):
+        CASH = "cash", "Cash"
+        UPI = "upi", "UPI"
+        BANK_TRANSFER = "bank_transfer", "Bank Transfer"
+        CHEQUE = "cheque", "Cheque"
 
     receipt_no = models.CharField(max_length=20, unique=True, editable=False)
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="receipts")
     course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=False)
     amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     date = models.DateField()
-    mode = models.CharField(max_length=20, choices=PAYMENT_MODES, default="cash")
+    mode = models.CharField(
+        max_length=20, 
+        choices=PaymentMode.choices, 
+        default=PaymentMode.CASH
+    )
     txn_id = models.CharField(max_length=100, blank=True, help_text="Transaction ID for digital payments")
     remarks = models.TextField(blank=True)
     posted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     locked = models.BooleanField(default=False)
-    # pdf_file = models.FileField(upload_to="receipts/", blank=True, null=True)
     public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
 
     class Meta:
@@ -43,8 +45,7 @@ class FeesReceipt(models.Model):
     def save(self, *args, **kwargs):
         if not self.receipt_no:
             with transaction.atomic():
-                # Lock the table rows to prevent race conditions
-                # We get the last receipt created
+                # Lock the table rows to prevent race conditions during high concurrency
                 last_receipt = FeesReceipt.objects.select_for_update().order_by('-id').first()
                 
                 if last_receipt and last_receipt.receipt_no.startswith('REC'):
@@ -63,17 +64,16 @@ class FeesReceipt(models.Model):
 
 
 class Expense(models.Model):
-    CATEGORY_CHOICES = [
-        ("rent", "Rent"),
-        ("electricity", "Electricity"),
-        ("salary", "Staff Salary"), # Generic salary (non-payroll)
-        ("materials", "Materials/Supplies"),
-        ("maintenance", "Maintenance"),
-        ("marketing", "Marketing"),
-        ("other", "Other"),
-    ]
+    class Category(models.TextChoices):
+        RENT = "rent", "Rent"
+        ELECTRICITY = "electricity", "Electricity"
+        SALARY = "salary", "Staff Salary"
+        MATERIALS = "materials", "Materials/Supplies"
+        MAINTENANCE = "maintenance", "Maintenance"
+        MARKETING = "marketing", "Marketing"
+        OTHER = "other", "Other"
 
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
+    category = models.CharField(max_length=50, choices=Category.choices)
     title = models.CharField(max_length=200)
     amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     date = models.DateField()

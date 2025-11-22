@@ -120,29 +120,24 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-# helper to parse comma separated env vars and trim whitespace
+# Helper to parse comma separated env vars securely
 def get_list(env_var, default):
     val = os.getenv(env_var, default)
+    if not val:
+        return []
     return [x.strip() for x in val.split(",") if x.strip()]
 
-# CORS
-# Use env var CORS_ALLOWED_ORIGINS="https://noorinstitute.vercel.app"
 CORS_ALLOWED_ORIGINS = get_list(
     "CORS_ALLOWED_ORIGINS",
-    "https://noorinstitute.vercel.app,http://192.168.1.2:5173,http://localhost:5173,http://127.0.0.1:5173"
+    "http://192.168.1.2:5173,http://localhost:5173,http://127.0.0.1:5173"
 )
 CORS_ALLOW_CREDENTIALS = True
 
-# If you need to allow regex origins (subdomains), use CORS_ALLOWED_ORIGIN_REGEXES
-# CORS_ALLOWED_ORIGIN_REGEXES = [ r"^https://.*\.vercel\.app$" ]
-
-# CSRF trusted origins (use same helper)
 CSRF_TRUSTED_ORIGINS = get_list(
     "CSRF_TRUSTED_ORIGINS",
-    "https://noorinstitute.vercel.app"
+    "http://192.168.1.2:5173,http://localhost:5173,http://127.0.0.1:5173"
 )
 
-# Optional extras that help preflight requests
 CORS_ALLOW_HEADERS = list(defaults := [
     "content-type",
     "authorization",
@@ -153,8 +148,7 @@ CORS_ALLOW_HEADERS = list(defaults := [
     "x-csrftoken",
 ])
 CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-CORS_PREFLIGHT_MAX_AGE = 86400  # 1 day
-
+CORS_PREFLIGHT_MAX_AGE = 86400
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Stitching Institute Management API",
@@ -166,6 +160,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@noorinstitute.com")
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 LOGGING = {
     "version": 1,

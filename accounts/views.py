@@ -54,21 +54,28 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    
     @action(detail=False, methods=["post"], url_path="me/set-password")
     def set_password(self, request):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             serializer.save()
-            return Response({"detail": "Password updated successfully."}, status=status.HTTP_200_OK)
+            return Response({"success": True, "message": "Password updated successfully."}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+
 class ForgotPasswordView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = PasswordResetRequestSerializer
 
     @staticmethod
     def send_sendgrid_email(to_email, subject, html_content):
+        """
+        Helper to send email via SendGrid. Returns status code or None.
+        """
+        if not settings.SENDGRID_API_KEY:
+            logger.warning("SendGrid API Key is missing. Email not sent.")
+            return None
+
         try:
             message = Mail(
                 from_email=settings.EMAIL_SENDER,
@@ -76,35 +83,25 @@ class ForgotPasswordView(generics.GenericAPIView):
                 subject=subject,
                 html_content=html_content
             )
-
             sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
             response = sg.send(message)
             return response.status_code
 
         except Exception as e:
-            print("SendGrid Error:", str(e))
+            logger.error(f"SendGrid Error: {e}", exc_info=True)
             return None
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = User.objects.get(
-            email__iexact=serializer.validated_data["email"],
-            is_active=True,
-        )
+        # Note: Serializer validation ensures user exists and is active
+        user = User.objects.get(email__iexact=serializer.validated_data["email"])
 
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         
-        frontend_url = os.getenv("FRONTEND_URL")
-        if not frontend_url:
-            # Fallback for local dev only, or log a warning
-            frontend_url = "http://localhost:5173"
-        # Remove trailing slash if present to avoid double slashes
-        if frontend_url.endswith('/'):
-            frontend_url = frontend_url[:-1]
-            
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip('/')
         reset_link = f"{frontend_url}/reset-password/{uidb64}/{token}"
 
         context = {
@@ -114,21 +111,24 @@ class ForgotPasswordView(generics.GenericAPIView):
 
         html_message = render_to_string("account/password_reset_email.html", context)
 
-        # --- SEND EMAIL USING SENDGRID ---
         result = ForgotPasswordView.send_sendgrid_email(
             user.email,
             "Password Reset for Noor Institute",
             html_message,
         )
 
-        if result != 202:
+        # In development, just logging the link is often helpful
+        if settings.DEBUG:
+            logger.info(f"Password Reset Link for {user.email}: {reset_link}")
+
+        if result and result not in [200, 202]:
             return Response(
-                {"detail": "Failed to send email. Try again later."},
+                {"success": False, "message": "Failed to send email provider error."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response(
-            {"detail": "Password reset link sent to your email."},
+            {"success": True, "message": "Password reset link sent to your email."},
             status=status.HTTP_200_OK,
         )
 
@@ -143,6 +143,6 @@ class ResetPasswordView(generics.GenericAPIView):
         serializer.save()
         
         return Response(
-            {"detail": "Password has been reset successfully. You can now log in."},
+            {"success": True, "message": "Password has been reset successfully. You can now log in."},
             status=status.HTTP_200_OK
         )

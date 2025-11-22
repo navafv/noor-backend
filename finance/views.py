@@ -8,6 +8,9 @@ from api.permissions import IsAdmin, IsStudent
 from django.http import HttpResponse
 from .utils import generate_receipt_pdf
 from django.shortcuts import get_object_or_404
+import logging
+
+logger = logging.getLogger(__name__)
 
 class FeesReceiptViewSet(viewsets.ModelViewSet):
     queryset = FeesReceipt.objects.select_related("student__user", "course").all()
@@ -17,7 +20,6 @@ class FeesReceiptViewSet(viewsets.ModelViewSet):
     ordering_fields = ["date", "amount"]
 
     def get_permissions(self):
-        # Allow public access to the specific download endpoint
         if self.action == 'download_public':
              return [AllowAny()]
         if self.action in ['list', 'retrieve', 'download_pdf']:
@@ -25,7 +27,6 @@ class FeesReceiptViewSet(viewsets.ModelViewSet):
         return [IsAdmin()]
 
     def get_queryset(self):
-        # For public download, we bypass the standard queryset filtering
         if self.action == 'download_public':
             return FeesReceipt.objects.all()
         
@@ -39,69 +40,39 @@ class FeesReceiptViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='download')
     def download_pdf(self, request, pk=None):
         receipt = self.get_object()
-
-        pdf_content = generate_receipt_pdf(receipt) # <-- Generate on the fly
-
-        if not pdf_content:
-            return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        try:
+            pdf_content = generate_receipt_pdf(receipt)
+            if not pdf_content:
+                raise ValueError("PDF Generation returned empty bytes")
+        except Exception as e:
+            logger.error(f"PDF Generation Error (Receipt {receipt.receipt_no}): {e}", exc_info=True)
+            return Response(
+                {"success": False, "message": "Unable to generate PDF receipt."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
         response = HttpResponse(pdf_content, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Receipt_{receipt.receipt_no}.pdf"'
         return response
-        
-        # Generate PDF if it doesn't exist
-        # if not receipt.pdf_file:
-        #     pdf_content = generate_receipt_pdf(receipt)
-        #     if pdf_content:
-        #         from django.core.files.base import ContentFile
-        #         filename = f"Receipt_{receipt.receipt_no}.pdf"
-        #         receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
-        #     else:
-        #         return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        # try:
-        #     return FileResponse(
-        #         receipt.pdf_file.open('rb'), 
-        #         as_attachment=True, 
-        #         filename=f"Receipt_{receipt.receipt_no}.pdf"
-        #     )
-        # except FileNotFoundError:
-        #     return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
         
     @action(detail=False, methods=['get'], url_path='public/(?P<public_id>[^/.]+)')
     def download_public(self, request, public_id=None):
-        """
-        Public endpoint to download receipt using UUID. No login required.
-        """
         receipt = get_object_or_404(FeesReceipt, public_id=public_id)
-
-        pdf_content = generate_receipt_pdf(receipt) # <-- Generate on the fly
-
-        if not pdf_content:
-            return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        try:
+            pdf_content = generate_receipt_pdf(receipt)
+            if not pdf_content:
+                 raise ValueError("PDF Generation returned empty bytes")
+        except Exception as e:
+            logger.error(f"Public PDF Generation Error (Receipt {receipt.receipt_no}): {e}", exc_info=True)
+            return Response(
+                {"success": False, "message": "Unable to generate PDF receipt."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
         response = HttpResponse(pdf_content, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Receipt_{receipt.receipt_no}.pdf"'
         return response
-        
-        # Generate PDF if missing
-        # if not receipt.pdf_file:
-        #     pdf_content = generate_receipt_pdf(receipt)
-        #     if pdf_content:
-        #         from django.core.files.base import ContentFile
-        #         filename = f"Receipt_{receipt.receipt_no}.pdf"
-        #         receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
-        #     else:
-        #         return Response({"detail": "Error generating PDF."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        # try:
-        #     return FileResponse(
-        #         receipt.pdf_file.open('rb'), 
-        #         as_attachment=True, 
-        #         filename=f"Receipt_{receipt.receipt_no}.pdf"
-        #     )
-        # except FileNotFoundError:
-        #     return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class ExpenseViewSet(viewsets.ModelViewSet):

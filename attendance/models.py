@@ -1,7 +1,6 @@
 from django.db import models
 from django.conf import settings
 from students.models import Student
-from django.core.validators import MinLengthValidator
 
 class Attendance(models.Model):
     date = models.DateField(unique=True)
@@ -29,24 +28,27 @@ class Attendance(models.Model):
     def summary(self):
         """Returns counts of Present, Absent, etc."""
         return {
-            "present": self.entries.filter(status="P").count(),
-            "absent": self.entries.filter(status="A").count(),
-            "late": self.entries.filter(status="L").count(),
-            "excused": self.entries.filter(status="E").count(),
+            "present": self.entries.filter(status=AttendanceEntry.Status.PRESENT).count(),
+            "absent": self.entries.filter(status=AttendanceEntry.Status.ABSENT).count(),
+            "late": self.entries.filter(status=AttendanceEntry.Status.LATE).count(),
+            "excused": self.entries.filter(status=AttendanceEntry.Status.EXCUSED).count(),
         }
 
 
 class AttendanceEntry(models.Model):
-    STATUS_CHOICES = [
-        ("P", "Present"),
-        ("A", "Absent"),
-        ("L", "Late"),
-        ("E", "Excused"),
-    ]
+    class Status(models.TextChoices):
+        PRESENT = "P", "Present"
+        ABSENT = "A", "Absent"
+        LATE = "L", "Late"
+        EXCUSED = "E", "Excused"
 
     attendance = models.ForeignKey(Attendance, on_delete=models.CASCADE, related_name="entries")
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
-    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default="P")
+    status = models.CharField(
+        max_length=1, 
+        choices=Status.choices, 
+        default=Status.PRESENT
+    )
     remarks = models.CharField(max_length=255, blank=True)
 
     class Meta:
@@ -55,4 +57,4 @@ class AttendanceEntry(models.Model):
         verbose_name_plural = "Attendance Entries"
 
     def __str__(self):
-        return f"{self.student} - {self.status}"
+        return f"{self.student} - {self.get_status_display()}"

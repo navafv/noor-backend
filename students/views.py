@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -39,10 +39,16 @@ class StudentViewSet(viewsets.ModelViewSet):
         parser_classes=[MultiPartParser, FormParser]
     )
     def me(self, request):
+        """
+        Endpoint for a logged-in student to view or update (photo only) their profile.
+        """
         try:
             student = request.user.student
         except Student.DoesNotExist:
-            return Response({"detail": "Student profile not found for this user."}, status=404)
+            return Response(
+                {"detail": "Student profile not found for this user."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
  
         if request.method == 'GET':
             serializer = self.get_serializer(student)
@@ -53,7 +59,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
-            return Response(serializer.errors, status=400)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class StudentMeasurementViewSet(viewsets.ModelViewSet):

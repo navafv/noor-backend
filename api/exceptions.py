@@ -1,44 +1,68 @@
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.exceptions import ValidationError, PermissionDenied, NotAuthenticated
+from django.http import Http404
 import logging
 
 logger = logging.getLogger(__name__)
 
 def custom_exception_handler(exc, context):
     """
-    Custom exception handler that standardizes error responses.
+    Global exception handler for a consistent API response format.
+    Format:
+    {
+        "success": False,
+        "status_code": 4xx/5xx,
+        "message": "Human readable error",
+        "code": "internal_code",
+        "details": { ... } (optional field errors)
+    }
     """
-    # Call REST framework's default exception handler first
+    # Call DRF's default handler first to get the standard response
     response = exception_handler(exc, context)
 
-    # If the exception was handled by DRF
+    # Default error details
+    success = False
+    message = "An unexpected error occurred."
+    code = "server_error"
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    details = None
+
     if response is not None:
-        # Add a standard "status" field
-        response.data['status'] = 'error'
+        # DRF handled the exception (e.g., ValidationError, PermissionDenied)
+        status_code = response.status_code
         
-        # If the error is a simple detail string, wrap it
-        if 'detail' in response.data:
-            response.data['message'] = response.data['detail']
-            del response.data['detail']
+        if isinstance(exc, ValidationError):
+            message = "Validation failed."
+            code = "validation_error"
+            details = response.data
+        elif isinstance(exc, (PermissionDenied, NotAuthenticated)):
+            message = "You do not have permission to perform this action."
+            code = "permission_denied"
+        elif isinstance(exc, Http404):
+            message = "The requested resource was not found."
+            code = "not_found"
         else:
-            # If it's a validation error dictionary, keep it generally as is,
-            # but maybe add a generic message.
-            if response.status_code == 400:
-                 response.data['message'] = "Validation error"
-
-    # If response is None, it's an unhandled server error (500)
+            # Extract message from DRF response if available
+            message = response.data.get('detail', str(exc))
+            code = "client_error"
+    
     else:
-        logger.error(f"Unhandled Exception: {exc}", exc_info=True)
-        
-        # In production, hide details. In debug, show them.
-        # For this app, we'll return a generic 500 json.
-        return Response(
-            {
-                "status": "error",
-                "message": "An unexpected error occurred. Please contact support."
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        # Handle unexpected errors (500) that DRF didn't catch
+        logger.error(f"Unhandled Exception in {context['view'].__class__.__name__}: {exc}", exc_info=True)
+        # In production, keep the message generic. In debug, you might show str(exc)
+        message = "Internal Server Error. Please contact support."
 
-    return response
+    # Construct the standardized response
+    data = {
+        "success": success,
+        "status_code": status_code,
+        "message": message,
+        "code": code,
+    }
+    
+    if details:
+        data["details"] = details
+
+    return Response(data, status=status_code)

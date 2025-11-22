@@ -8,6 +8,9 @@ from .serializers import CertificateSerializer
 from .utils import generate_certificate_pdf
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CertificateViewSet(viewsets.ModelViewSet):
     queryset = Certificate.objects.select_related("student__user", "course").order_by("-issue_date")
@@ -24,7 +27,10 @@ class CertificateViewSet(viewsets.ModelViewSet):
                 "student__user", "course"
             ).get(qr_hash=qr_hash, revoked=False)
         except Certificate.DoesNotExist:
-             return Response({"valid": False, "message": "Certificate not found or has been revoked."}, status=status.HTTP_404_NOT_FOUND)
+             return Response(
+                 {"success": False, "message": "Certificate not found or has been revoked.", "code": "invalid_certificate"},
+                 status=status.HTTP_404_NOT_FOUND
+             )
 
         data = {
             "valid": True,
@@ -44,41 +50,38 @@ class CertificateViewSet(viewsets.ModelViewSet):
         cert.save(update_fields=["revoked"])
         
         status_text = "revoked" if new_status else "un-revoked"
-        return Response({"detail": f"Certificate has been {status_text}.", "revoked": new_status})
+        return Response({"success": True, "message": f"Certificate has been {status_text}.", "revoked": new_status})
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated]) 
     def download(self, request, pk=None):
         cert = get_object_or_404(Certificate, pk=pk)
 
+        # Authorization Check
         is_owner = (request.user.is_authenticated and
                     hasattr(request.user, 'student') and 
                     request.user.student == cert.student)
         is_admin = request.user.is_staff
         
         if not (is_owner or is_admin):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"success": False, "message": "You are not authorized to download this certificate."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
             
-        # if not cert.pdf_file:
-        #     return Response({"detail": "PDF file not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        pdf_content = generate_certificate_pdf(cert)
-
-        if not pdf_content:
-            return Response({"detail": "Error generating PDF. Check server logs for WeasyPrint errors."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        try:
+            pdf_content = generate_certificate_pdf(cert)
+            if not pdf_content:
+                raise ValueError("PDF Generation returned empty bytes")
+        except Exception as e:
+            logger.error(f"Certificate Generation Error ({cert.certificate_no}): {e}", exc_info=True)
+            return Response(
+                {"success": False, "message": "Error generating certificate PDF."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
-        # Stream the raw bytes with correct content type
         response = HttpResponse(pdf_content, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{cert.certificate_no}.pdf"'
         return response
-
-        # try:
-        #     return FileResponse(
-        #         cert.pdf_file.open('rb'), 
-        #         as_attachment=True, 
-        #         filename=cert.pdf_file.name.split('/')[-1]
-        #     )
-        # except FileNotFoundError:
-        #     return Response({"detail": "File not found on server."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class StudentCertificateViewSet(viewsets.ReadOnlyModelViewSet):
@@ -92,5 +95,5 @@ class StudentCertificateViewSet(viewsets.ReadOnlyModelViewSet):
                 student=student,
                 revoked=False
             ).select_related("course").order_by("-issue_date")
-        except AttributeError: # If user has no student profile
+        except AttributeError:
             return Certificate.objects.none()

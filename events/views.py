@@ -1,8 +1,12 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
+from rest_framework.response import Response
 from .models import Event
 from .serializers import EventSerializer
 from api.permissions import IsAdminOrReadOnly 
 from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 class EventViewSet(viewsets.ModelViewSet):
     """
@@ -20,8 +24,12 @@ class EventViewSet(viewsets.ModelViewSet):
         - Admins see all events (past and future).
         - Students/Public see only *ongoing or future* events.
         """
-        if self.request.user.is_authenticated and self.request.user.is_staff:
-            return Event.objects.all().order_by('-start_date')
+        try:
+            if self.request.user.is_authenticated and self.request.user.is_staff:
+                return Event.objects.all().order_by('-start_date')
 
-        today = timezone.now().date()
-        return Event.objects.filter(end_date__gte=today).order_by('start_date')
+            today = timezone.now().date()
+            return Event.objects.filter(end_date__gte=today).order_by('start_date')
+        except Exception as e:
+            logger.error(f"Error fetching events: {e}", exc_info=True)
+            return Event.objects.none()

@@ -30,17 +30,20 @@ class Course(models.Model):
 
 
 class Enrollment(models.Model):
-    STATUS_CHOICES = [
-        ("active", "Active"),
-        ("completed", "Completed"),
-        ("dropped", "Dropped"),
-    ]
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        COMPLETED = "completed", "Completed"
+        DROPPED = "dropped", "Dropped"
 
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="enrollments")
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="enrollments")
     enrolled_on = models.DateField(auto_now_add=True)
     completion_date = models.DateField(null=True, blank=True, editable=False)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="active")
+    status = models.CharField(
+        max_length=20, 
+        choices=Status.choices, 
+        default=Status.ACTIVE
+    )
 
     class Meta:
         unique_together = ("student", "course")
@@ -64,12 +67,12 @@ class Enrollment(models.Model):
         """
         Checks if the student's attendance meets the course requirement.
         """
-        if self.status == "active":
+        if self.status == self.Status.ACTIVE:
             present_count = self.get_present_days_count()
             required_count = self.course.required_attendance_days
             
             if present_count >= required_count:
-                self.status = "completed"
+                self.status = self.Status.COMPLETED
                 self.completion_date = timezone.now().date()
                 self.save(update_fields=["status", "completion_date"])
 
@@ -91,9 +94,8 @@ class CourseMaterial(models.Model):
         return f"{self.title} ({self.course.code})"
 
     def clean(self):
+        from django.core.exceptions import ValidationError
         if not self.file and not self.link:
-            from django.core.exceptions import ValidationError
             raise ValidationError("Must provide either a file or a link.")
         if self.file and self.link:
-            from django.core.exceptions import ValidationError
             raise ValidationError("Cannot provide both a file and a link.")
