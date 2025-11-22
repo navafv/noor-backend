@@ -19,6 +19,9 @@ DATABASES = {
     }
 }
 
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+EMAIL_SENDER = os.getenv("EMAIL_SENDER", "no-reply@noorinstitute.com")
+
 # --- Email ---
 # Use console backend for local development
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

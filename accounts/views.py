@@ -22,24 +22,6 @@ from sendgrid.helpers.mail import Mail
 
 logger = logging.getLogger(__name__)
 
-@staticmethod
-def send_sendgrid_email(to_email, subject, html_content):
-    try:
-        message = Mail(
-            from_email=settings.EMAIL_SENDER,
-            to_emails=to_email,
-            subject=subject,
-            html_content=html_content
-        )
-
-        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-        response = sg.send(message)
-        return response.status_code
-
-    except Exception as e:
-        print("SendGrid Error:", str(e))
-        return None
-
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.order_by('username')
     filterset_fields = ["is_active", "is_staff"]
@@ -85,19 +67,33 @@ class ForgotPasswordView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = PasswordResetRequestSerializer
 
+    @staticmethod
+    def send_sendgrid_email(to_email, subject, html_content):
+        try:
+            message = Mail(
+                from_email=settings.EMAIL_SENDER,
+                to_emails=to_email,
+                subject=subject,
+                html_content=html_content
+            )
+
+            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+            response = sg.send(message)
+            return response.status_code
+
+        except Exception as e:
+            print("SendGrid Error:", str(e))
+            return None
+
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = serializer.validated_data["email"]
-        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        user = User.objects.get(
+            email__iexact=serializer.validated_data["email"],
+            is_active=True,
+        )
 
-        if not user:
-            return Response(
-                {"detail": "If this email exists, a reset link will be sent."},
-                status=status.HTTP_200_OK
-            )
-        
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         
@@ -109,34 +105,31 @@ class ForgotPasswordView(generics.GenericAPIView):
         if frontend_url.endswith('/'):
             frontend_url = frontend_url[:-1]
             
-        reset_link = f"{frontend_url}/reset-password/{uidb64}/{token}/"
-        
+        reset_link = f"{frontend_url}/reset-password/{uidb64}/{token}"
+
         context = {
-            'first_name': user.first_name or user.username,
-            'reset_link': reset_link,
+            "first_name": user.first_name or user.username,
+            "reset_link": reset_link,
         }
-        
+
         html_message = render_to_string("account/password_reset_email.html", context)
 
-        # Send via SendGrid API
+        # --- SEND EMAIL USING SENDGRID ---
         result = ForgotPasswordView.send_sendgrid_email(
             user.email,
             "Password Reset for Noor Institute",
-            html_message
+            html_message,
         )
 
         if result != 202:
-            logger.error(f"SendGrid failed with status {result}")
             return Response(
-                {"detail": "Email sending failed. Please try again later."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"detail": "Failed to send email. Try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        logger.info(f"Password reset email sent to {user.email}")
-
         return Response(
-            {"detail": "Password reset link has been sent to your email."},
-            status=status.HTTP_200_OK
+            {"detail": "Password reset link sent to your email."},
+            status=status.HTTP_200_OK,
         )
 
 
