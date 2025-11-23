@@ -153,7 +153,7 @@ CORS_PREFLIGHT_MAX_AGE = 86400
 SPECTACULAR_SETTINGS = {
     "TITLE": "Stitching Institute Management API",
     "DESCRIPTION": "Backend API for managing students, courses, finance, and more.",
-    "VERSION": "1.0.0",
+    "VERSION": "1.0.1",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/v1",

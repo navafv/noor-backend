@@ -1,149 +1,78 @@
-# Noor Stitching Institute - Backend API
+# Noor Stitching Institute - Management System Backend
 
-A robust, production-ready Django REST Framework backend for managing the Noor Stitching Institute. This system handles the entire lifecycle of the institute, including student admission, course management, financial tracking, attendance, and certificate issuance with QR code verification.
+A comprehensive, production-ready REST API built with **Django 5.2** and **Django REST Framework** to manage the entire lifecycle of a stitching and fashion design institute. This system handles student admissions, body measurements, course progression, financial accounting, attendance tracking, and digital certification.
+
+---
 
 ## 🚀 Key Features
 
-* **🔐 Authentication & Roles**
-  * Secure JWT Authentication (`simplejwt`).
-  * Role-Based Access Control (RBAC): Administrators (Staff) vs. Students.
-  * Profile management and password reset flows via Email (SendGrid).
+### 🔐 Authentication & Roles
+* **JWT Authentication:** Secure, stateless authentication using `simplejwt`.
+* **RBAC (Role-Based Access Control):** Distinct permissions for **Admins/Staff** (Full access) vs **Students** (Read-only access to own data).
+* **Password Management:** Secure reset flows via Email (SendGrid integration).
 
-* **👤 Student Management**
-  * Detailed student profiles with guardian info.
-  * **Measurements Tracking:** Dedicated module to record body measurements (Neck, Chest, Waist, etc.) for stitching courses.
-  * Self-service portal for students to view their own data.
+### 👤 Student & Course Management
+* **Digital Profiles:** Manage student details, guardian info, and addresses.
+* **Measurements Tracking:** Dedicated module to record specific body measurements (Neck, Chest, Waist, Inseam, etc.) for tailoring courses.
+* **Course Materials:** Admins can upload PDFs/Images or link external resources; students can download materials for their enrolled courses.
+* **Enrollment Lifecycle:** Track status (`Active`, `Completed`, `Dropped`) and dates.
 
-* **📚 Courses & Materials**
-  * Course creation with duration, fees, and syllabus.
-  * **Digital Library:** Upload course materials (PDFs, Images) or external links.
-  * Student Enrollment tracking (Active/Dropped/Completed).
+### 📅 Smart Attendance
+* **Daily Tracking:** Mark attendance (Present, Absent, Late, Excused).
+* **Auto-Completion:** Automatically marks a student's enrollment as **"Completed"** once they meet the required attendance threshold (e.g., 36 days).
+* **Analytics:** Dashboard providing attendance rates and daily trends.
 
-* **📅 Attendance System**
-  * Daily attendance marking (Present, Absent, Late, Excused).
-  * Analytics dashboard for attendance rates.
-  * **Auto-Completion Logic:** Automatically marks courses as "Completed" when attendance thresholds are met.
+### 💰 Finance & Accounting
+* **Fee Receipts:** Auto-generate professional **PDF Receipts** using `WeasyPrint`.
+* **Expense Tracking:** Categorize institute expenses (Rent, Salary, Materials).
+* **Financial Dashboard:** Real-time analytics of Revenue vs. Expenses.
+* **Outstanding Fees:** Logic to identify and list students with pending payments.
 
-* **💰 Finance & Accounting**
-  * **Fee Receipts:** Generate professional PDF receipts automatically using `WeasyPrint`.
-  * **Expense Tracking:** Categorized expenses (Rent, Salary, Materials, etc.).
-  * **Dashboard:** Financial analytics (Revenue vs. Expenses) and charts.
-  * **Outstanding Fees:** Reports to identify students with pending payments.
-
-* **🏆 Certification**
-  * Generate PDF Certificates upon course completion.
-  * **QR Code Verification:** Publicly accessible endpoint to verify certificate authenticity via QR scan.
-  * Revocation system for invalidating certificates.
-
-* **📢 Events & Notifications**
-  * Internal notification system for alerts.
-  * Institute-wide event calendar.
+### 🏆 Certification & Verification
+* **PDF Certificates:** Auto-generate completion certificates.
+* **QR Code Verification:** Public endpoint to verify certificate authenticity via UUID hash.
+* **Revocation:** Admins can revoke certificates if necessary.
 
 ---
 
 ## 🛠️ Tech Stack
 
-* **Framework:** Python 3.11+, Django 5.2, Django REST Framework 3.16.
-* **Database:** SQLite (Dev), PostgreSQL (Production - via `dj_database_url`).
-* **Authentication:** JWT (JSON Web Tokens).
-* **PDF Engine:** [WeasyPrint](https://weasyprint.org/).
-* **Email Service:** SendGrid.
-* **Documentation:** OpenAPI 3.0 (Swagger & Redoc via `drf-spectacular`).
-* **Server:** Gunicorn, Whitenoise (Static files).
-* **Containerization:** Docker.
+* **Backend:** Python 3.11+, Django 5.2, Django REST Framework 3.16
+* **Database:** SQLite (Dev), PostgreSQL (Production via `dj_database_url`)
+* **Authentication:** JWT (JSON Web Tokens)
+* **PDF Generation:** [WeasyPrint](https://weasyprint.org/)
+* **Documentation:** OpenAPI 3.0 (Swagger/Redoc via `drf-spectacular`)
+* **Server:** Gunicorn + Whitenoise (Static files)
+* **Containerization:** Docker
+* **Testing:** Pytest
 
 ---
 
-## ⚙️ Local Setup & Installation
+## ⚙️ Local Development Setup
 
-### Prerequisites
-* Python 3.11+
-* **System Dependencies (Important for WeasyPrint):**
-  You must install libraries required for PDF generation (Pango, Cairo, GDK-Pixbuf).
-  * *Windows:* [Follow WeasyPrint Guide](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#windows) (usually involves installing GTK3).
-  * *Linux:* `sudo apt-get install build-essential libpq-dev libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info`
-  * *macOS:* `brew install pango libffi cairo gdk-pixbuf`
+### 1. Prerequisites
+* Python 3.11 or higher
+* **WeasyPrint Dependencies:** You must install system libraries for PDF generation.
+    * *Windows:* [Install GTK3 installer](https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer).
+    * *Linux (Debian/Ubuntu):*
+        ```bash
+        sudo apt-get install build-essential libpq-dev libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info
+        ```
+    * *macOS:* `brew install pango libffi cairo gdk-pixbuf`
 
-### Steps
-
-1.  **Clone the repository**
-    ```bash
-    git clone [https://github.com/navafv/noor-backend.git](https://github.com/navafv/noor-backend.git)
-    cd noor-backend
-    ```
-
-2.  **Create Virtual Environment**
-    ```bash
-    python -m venv .venv
-    # Windows
-    .venv\Scripts\activate
-    # Mac/Linux
-    source .venv/bin/activate
-    ```
-
-3.  **Install Dependencies**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Environment Variables**
-    Create a `.env` file in the root directory. Use `.env.example` as a reference.
-    ```bash
-    cp .env.example .env
-    ```
-    *Update `DJANGO_SECRET_KEY` and `SENDGRID_API_KEY` in the `.env` file*.
-
-5.  **Run Migrations**
-    ```bash
-    python manage.py migrate
-    ```
-
-6.  **Create Admin User**
-    ```bash
-    python manage.py createsuperuser
-    ```
-
-7.  **Run Server**
-    ```bash
-    python manage.py runserver
-    ```
-    Access API at `http://127.0.0.1:8000/api/v1/`
-
----
-
-## 🐳 Docker Setup
-
-A `Dockerfile` is included for containerized deployment.
-
-1.  **Build the Image**
-    ```bash
-    docker build -t noor-backend .
-    ```
-
-2.  **Run the Container**
-    ```bash
-    docker run -p 8000:8000 --env-file .env noor-backend
-    ```
-
----
-
-## 📖 API Documentation
-
-The project uses `drf-spectacular` to generate automatic documentation. Once the server is running:
-
-* **Swagger UI:** `http://127.0.0.1:8000/api/docs/swagger/`
-* **Redoc:** `http://127.0.0.1:8000/api/docs/redoc/`
-* **Schema (YAML):** `http://127.0.0.1:8000/api/schema/`
-
----
-
-## 🧪 Testing
-
-The project is configured to use `pytest`.
-
+### 2. Clone & Install
 ```bash
-# Run all tests
-pytest
+# Clone the repo
+git clone [https://github.com/navafv/noor-backend.git](https://github.com/navafv/noor-backend.git)
+cd noor-backend
 
-# Run specific app tests
-pytest students/tests.py
+# Create Virtual Environment
+python -m venv .venv
+
+# Activate (Windows)
+.venv\Scripts\activate
+# Activate (Mac/Linux)
+source .venv/bin/activate
+
+# Install Python Dependencies
+pip install -r requirements.txt
