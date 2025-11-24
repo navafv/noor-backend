@@ -55,6 +55,7 @@ class StudentUserCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop("password")
         
+        # Enforce student roles
         validated_data['is_staff'] = False
         validated_data['is_superuser'] = False
         
@@ -84,6 +85,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
 
     def validate_email(self, value):
+        # Only allow password reset for active users
         if not User.objects.filter(email__iexact=value, is_active=True).exists():
             raise serializers.ValidationError("No active user found with this email address.")
         return value

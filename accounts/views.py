@@ -72,7 +72,7 @@ class ForgotPasswordView(generics.GenericAPIView):
         """
         Helper to send email via SendGrid. Returns status code or None.
         """
-        if not settings.SENDGRID_API_KEY:
+        if not getattr(settings, 'SENDGRID_API_KEY', None):
             logger.warning("SendGrid API Key is missing. Email not sent.")
             return None
 
@@ -95,13 +95,15 @@ class ForgotPasswordView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Note: Serializer validation ensures user exists and is active
         user = User.objects.get(email__iexact=serializer.validated_data["email"])
 
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip('/')
+        # Priority: Django Settings > OS Env > Default
+        frontend_url = getattr(settings, 'FRONTEND_URL', os.getenv("FRONTEND_URL", "http://localhost:5173")).rstrip('/')
+        
+        # Matches frontend route: /reset-password/:uid/:token
         reset_link = f"{frontend_url}/reset-password/{uidb64}/{token}"
 
         context = {
@@ -117,7 +119,6 @@ class ForgotPasswordView(generics.GenericAPIView):
             html_message,
         )
 
-        # In development, just logging the link is often helpful
         if settings.DEBUG:
             logger.info(f"Password Reset Link for {user.email}: {reset_link}")
 
