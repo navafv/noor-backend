@@ -1,6 +1,6 @@
 from django.db import transaction
 from rest_framework import serializers
-from .models import Student, StudentMeasurement
+from .models import Student
 from accounts.serializers import UserSerializer, StudentUserCreateSerializer
 from django.utils import timezone
 
@@ -43,15 +43,6 @@ class StudentSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         validated_data.pop("user_payload", None)
         return super().update(instance, validated_data)
-
-
-class StudentMeasurementSerializer(serializers.ModelSerializer):
-    student_name = serializers.ReadOnlyField(source="student.user.get_full_name")
-
-    class Meta:
-        model = StudentMeasurement
-        fields = "__all__"
-        read_only_fields = ["id", "student"]
 
 
 class StudentSelfUpdateSerializer(serializers.ModelSerializer):

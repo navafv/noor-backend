@@ -15,6 +15,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        # Standard users only see their own notifications
         return Notification.objects.filter(recipient=self.request.user).order_by("-created_at")
 
     @action(detail=False, methods=["post"], permission_classes=[IsAdmin])
@@ -29,7 +30,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Title and message are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Find all users who are students AND have at least one active enrollment
-        # We use the related names: 'student' (profile) -> 'enrollments' -> status='active'
         active_users = User.objects.filter(
             student__enrollments__status='active'
         ).distinct()

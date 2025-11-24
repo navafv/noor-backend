@@ -1,10 +1,7 @@
-from rest_framework_nested import routers
-from .views import StudentViewSet, StudentMeasurementViewSet
+from rest_framework.routers import DefaultRouter
+from .views import StudentViewSet
 
-router = routers.DefaultRouter()
+router = DefaultRouter()
 router.register(r"students", StudentViewSet, basename="student")
 
-students_router = routers.NestedSimpleRouter(router, r'students', lookup='student')
-students_router.register(r'measurements', StudentMeasurementViewSet, basename='student-measurements')
-
-urlpatterns = router.urls + students_router.urls
+urlpatterns = router.urls

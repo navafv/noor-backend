@@ -58,15 +58,9 @@ class Enrollment(models.Model):
         return f"{self.student.user.get_full_name()} → {self.course.title}"
     
     def get_present_days_count(self):
-        """
-        Counts all 'Present' attendance entries for this student.
-        """
         return self.student.attendanceentry_set.filter(status="P").count()
     
     def check_and_update_status(self):
-        """
-        Checks if the student's attendance meets the course requirement.
-        """
         if self.status == self.Status.ACTIVE:
             present_count = self.get_present_days_count()
             required_count = self.course.required_attendance_days
@@ -75,27 +69,3 @@ class Enrollment(models.Model):
                 self.status = self.Status.COMPLETED
                 self.completion_date = timezone.now().date()
                 self.save(update_fields=["status", "completion_date"])
-
-
-class CourseMaterial(models.Model):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="materials")
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    file = models.FileField(upload_to="course_materials/", blank=True, null=True)
-    link = models.URLField(blank=True, null=True)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-uploaded_at"]
-        verbose_name = "Course Material"
-        verbose_name_plural = "Course Materials"
-
-    def __str__(self):
-        return f"{self.title} ({self.course.code})"
-
-    def clean(self):
-        from django.core.exceptions import ValidationError
-        if not self.file and not self.link:
-            raise ValidationError("Must provide either a file or a link.")
-        if self.file and self.link:
-            raise ValidationError("Cannot provide both a file and a link.")

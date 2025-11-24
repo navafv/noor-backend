@@ -1,10 +1,5 @@
 from django.contrib import admin
-from .models import Student, StudentMeasurement
-
-class StudentMeasurementInline(admin.TabularInline):
-    model = StudentMeasurement
-    extra = 1
-    ordering = ("-date_taken",)
+from .models import Student
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
@@ -19,4 +14,3 @@ class StudentAdmin(admin.ModelAdmin):
     )
     readonly_fields = ("reg_no",)
     ordering = ("-admission_date",)
-    inlines = [StudentMeasurementInline]
