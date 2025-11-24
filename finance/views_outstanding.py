@@ -37,6 +37,7 @@ class OutstandingFeesViewSet(viewsets.ViewSet):
                 "student_name": enrollment.student.user.get_full_name(),
                 "reg_no": enrollment.student.reg_no,
                 "guardian_phone": enrollment.student.guardian_phone,
+                "student_phone": enrollment.student.user.phone,
                 "course_title": enrollment.course.title,
                 "total_fee": enrollment.course.total_fees,
                 "paid_amount": enrollment.paid_amount,
